@@ -15,9 +15,7 @@ import {
 import { parseCommaSeparatedTableNames } from './resource-types.ts';
 import { downloadParquetFiles } from './download.ts';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
-import { deleteWarehouseIcebergTables } from './delete-tables.ts';
 import { migrateTables } from './migrate.ts';
-import { asSqlIdentifier } from './warehouse-sql.ts';
 import { syncData } from './sync.ts';
 
 config();
@@ -50,10 +48,7 @@ export async function main(args: string[]): Promise<void> {
       'AWS S3 Table ARN (optional)',
       process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN
     )
-    .option(
-      '-l, --local-path <path>',
-      'Write Parquet files to local directory instead of S3 (no AWS credentials needed)'
-    )
+    .option('-l, --local-path <path>', 'Write Parquet files to local directory instead of S3 (no AWS credentials needed)')
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option(
       '--athena-output-location <s3-uri>',
@@ -117,9 +112,7 @@ export async function main(args: string[]): Promise<void> {
         process.exit(1);
       }
       if (clean && resolvedAwsS3TableArn) {
-        console.error(
-          'Invalid options: --clean is no longer supported. Create managed Iceberg tables in S3 Tables, then run migrate to verify prerequisites.'
-        );
+        console.error('Invalid options: --clean is no longer supported. Run the migrate command to create/replace tables.');
         process.exit(1);
       }
 
@@ -170,7 +163,7 @@ export async function main(args: string[]): Promise<void> {
   program
     .command('migrate')
     .description(
-      'Verify each Postgres warehouse source table exists and that matching Iceberg tables already exist in S3 Tables (creates namespace metadata only; does not create Iceberg tables)'
+      'Create missing S3 Tables Iceberg tables and namespace metadata (verifies each Postgres source table exists first)'
     )
     .option('-d, --database-url <url>', 'Postgres Database URL', process.env.MEDPLUM_DATABASE_URL)
     .option('--db-host <host>', 'Postgres Database Host', process.env.MEDPLUM_DATABASE_HOST)
@@ -202,7 +195,7 @@ export async function main(args: string[]): Promise<void> {
     )
     .requiredOption(
       '-t, --table <names>',
-      'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES). Verifies matching Iceberg tables already exist in S3 Tables.',
+      'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES). Provisions matching Iceberg tables in S3 Tables.',
       process.env.MEDPLUM_DATA_WAREHOUSE_TABLES
     )
     .action(async (options) => {
@@ -269,58 +262,6 @@ export async function main(args: string[]): Promise<void> {
         );
       } catch (err) {
         console.error('Migrate failed:', err);
-        process.exit(1);
-      }
-    });
-
-  program
-    .command('delete-table')
-    .description(
-      'Delete managed Iceberg tables in S3 Tables derived from comma-separated Postgres table names (no Postgres connection)'
-    )
-    .requiredOption(
-      '-a, --aws-s3-table-arn <arn>',
-      'AWS S3 Table ARN',
-      process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN
-    )
-    .option('-r, --s3-region <region>', 'S3 Region', process.env.AWS_REGION || 'us-east-1')
-    .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
-    .requiredOption(
-      '-t, --table <names>',
-      'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES). Deletes matching Iceberg tables in S3 Tables.',
-      process.env.MEDPLUM_DATA_WAREHOUSE_TABLES
-    )
-    .action(async (options) => {
-      const { awsS3TableArn, s3Region, namespace, table } = options;
-
-      try {
-        const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
-        if (!resolvedAwsS3TableArn) {
-          throw new Error('Missing required option: --aws-s3-table-arn');
-        }
-
-        const tableNames = parseCommaSeparatedTableNames(table);
-        if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
-        }
-        const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
-
-        const { deleted, missing } = await deleteWarehouseIcebergTables({
-          awsS3TableArn: resolvedAwsS3TableArn,
-          s3Region,
-          namespace,
-          warehouseSources,
-        });
-
-        const ns = JSON.stringify(asSqlIdentifier(namespace));
-        if (deleted.length > 0) {
-          console.log(`Deleted ${deleted.length} table(s) in namespace ${ns}: ${deleted.join(', ')}`);
-        }
-        if (missing.length > 0) {
-          console.log(`Not found (skipped): ${missing.join(', ')}`);
-        }
-      } catch (err) {
-        console.error('Delete-table failed:', err);
         process.exit(1);
       }
     });

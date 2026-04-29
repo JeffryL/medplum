@@ -1,7 +1,20 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { CreateNamespaceCommand, CreateTableCommand, GetTableCommand, S3TablesClient } from '@aws-sdk/client-s3tables';
+import {
+  CreateNamespaceCommand,
+  CreateTableCommand,
+  DeleteTableCommand,
+  GetTableCommand,
+  IcebergCompactionStrategy,
+  IcebergNullOrder,
+  IcebergSortDirection,
+  MaintenanceStatus,
+  PutTableMaintenanceConfigurationCommand,
+  S3TablesClient,
+  TableMaintenanceType,
+} from '@aws-sdk/client-s3tables';
+import type { IcebergMetadata, IcebergSortOrder } from '@aws-sdk/client-s3tables';
 import { getWarehousePartitionSpec } from './resource-types.ts';
 import { asSqlIdentifier } from './warehouse-sql.ts';
 
@@ -32,29 +45,45 @@ export function getIcebergTableS3LocationFromBucket(bucket: string, namespace: s
   return `s3://${bucket}/${safeNamespace}/${safeTable}/`;
 }
 
+/**
+ * Iceberg `writeOrder`: ascending `project_id`, then `last_updated` (nulls last).
+ *
+ * @param sourceIdByColumnName - Map of Iceberg schema column name to field id (must include `project_id` and `last_updated`).
+ * @returns Iceberg sort order with `orderId` 1 and two identity transform fields.
+ */
+export function buildWarehouseIcebergWriteOrder(sourceIdByColumnName: Record<string, number>): IcebergSortOrder {
+  const projectId = sourceIdByColumnName.project_id;
+  const lastUpdated = sourceIdByColumnName.last_updated;
+  if (!projectId) {
+    throw new Error('Iceberg write order requires schema field project_id');
+  }
+  if (!lastUpdated) {
+    throw new Error('Iceberg write order requires schema field last_updated');
+  }
+  return {
+    orderId: 1,
+    fields: [
+      {
+        sourceId: projectId,
+        transform: 'identity',
+        direction: IcebergSortDirection.ASC,
+        nullOrder: IcebergNullOrder.NULLS_LAST,
+      },
+      {
+        sourceId: lastUpdated,
+        transform: 'identity',
+        direction: IcebergSortDirection.ASC,
+        nullOrder: IcebergNullOrder.NULLS_LAST,
+      },
+    ],
+  };
+}
+
 export class DataWarehouseAwsClient {
   private readonly s3TablesClient: S3TablesClient;
 
   constructor(options: DataWarehouseAwsClientOptions) {
     this.s3TablesClient = new S3TablesClient({ region: options.region });
-  }
-
-  /**
-   * Throws if the named Iceberg table is not registered in the S3 Tables bucket.
-   * Does not create tables; use {@link createIcebergTable} for programmatic provisioning.
-   *
-   * @param tableBucketArn - S3 Tables bucket ARN.
-   * @param namespace - Iceberg namespace (validated as a SQL identifier).
-   * @param tableName - Iceberg table name (validated as a SQL identifier).
-   */
-  async assertIcebergTableExists(tableBucketArn: string, namespace: string, tableName: string): Promise<void> {
-    if (!(await this.tableExists(tableBucketArn, namespace, tableName))) {
-      const safeNamespace = asSqlIdentifier(namespace);
-      const safeTable = asSqlIdentifier(tableName);
-      throw new Error(
-        `Managed Iceberg table does not exist: ${safeNamespace}.${safeTable}. Create it in AWS S3 Tables before running migrate.`
-      );
-    }
   }
 
   async tableExists(tableBucketArn: string, namespace: string, tableName: string): Promise<boolean> {
@@ -78,6 +107,32 @@ export class DataWarehouseAwsClient {
     }
   }
 
+  /**
+   * Deletes a managed Iceberg table in S3 Tables. Returns `missing` when the table is not found (idempotent).
+   *
+   * @param options - Table bucket ARN, namespace, and Iceberg table name (SQL-sanitized identifiers).
+   * @returns Whether the table existed and was deleted, or was already absent.
+   */
+  async deleteIcebergTable(options: EnsureIcebergTableOptions): Promise<'deleted' | 'missing'> {
+    const safeNamespace = asSqlIdentifier(options.namespace);
+    const safeTable = asSqlIdentifier(options.tableName);
+    try {
+      await this.s3TablesClient.send(
+        new DeleteTableCommand({
+          tableBucketARN: options.tableBucketArn,
+          namespace: safeNamespace,
+          name: safeTable,
+        })
+      );
+      return 'deleted';
+    } catch (error: any) {
+      if (typeof error?.name === 'string' && error.name === 'NotFoundException') {
+        return 'missing';
+      }
+      throw error;
+    }
+  }
+
   async ensureNamespaceExists(tableBucketArn: string, namespace: string): Promise<void> {
     const safeNamespace = asSqlIdentifier(namespace);
     try {
@@ -95,6 +150,15 @@ export class DataWarehouseAwsClient {
     }
   }
 
+  /**
+   * Creates a managed Iceberg table with partition spec, {@link buildWarehouseIcebergWriteOrder},
+   * and S3 Tables compaction strategy **sort** (aligned with the sort order).
+   *
+   * **Existing tables:** Adding or changing `writeOrder` / compaction is not an in-place update in
+   * this helper; evolve or replace the table in AWS if you need new physical layout.
+   *
+   * @param options - Table bucket ARN, namespace, and Iceberg table name (SQL-sanitized identifiers).
+   */
   async createIcebergTable(options: EnsureIcebergTableOptions): Promise<void> {
     const safeNamespace = asSqlIdentifier(options.namespace);
     const safeTable = asSqlIdentifier(options.tableName);
@@ -107,45 +171,43 @@ export class DataWarehouseAwsClient {
       { id: 5, name: 'project_id', type: 'string' },
     ];
     const sourceIdByColumnName = Object.fromEntries(schemaFields.map((f) => [f.name, f.id])) as Record<string, number>;
-    // eslint-disable-next-line no-useless-catch
-    try {
-      await this.s3TablesClient.send(
-        new CreateTableCommand({
-          tableBucketARN: options.tableBucketArn,
-          namespace: safeNamespace,
-          name: safeTable,
-          format: 'ICEBERG',
-          metadata: {
-            iceberg: {
-              schema: {
-                fields: schemaFields,
-              },
-              partitionSpec: {
-                fields: partitionSpec.fields.map((field, index) => {
-                  const sourceId = sourceIdByColumnName[field.sourceColumn];
-                  if (!sourceId) {
-                    throw new Error(`Partition source column is not present in Iceberg schema: ${field.sourceColumn}`);
-                  }
-                  return {
-                    sourceId,
-                    transform: field.transform,
-                    name: field.name,
-                    fieldId: 1000 + index,
-                  };
-                }),
-              },
-              properties: {
-                table_type: 'ICEBERG',
-                format: 'parquet',
-                write_compression: 'zstd',
-                'format-version': '3',
-              },
-            },
-          } as any,
-        })
-      );
-    } catch (error: any) {
-      throw error;
-    }
+    const iceberg: IcebergMetadata = {
+      schema: {
+        fields: schemaFields,
+      },
+      partitionSpec: {
+        fields: partitionSpec.fields.map((field, index) => {
+          const sourceId = sourceIdByColumnName[field.sourceColumn];
+          if (!sourceId) {
+            throw new Error(`Partition source column is not present in Iceberg schema: ${field.sourceColumn}`);
+          }
+          return {
+            sourceId,
+            transform: field.transform,
+            name: field.name,
+            fieldId: 1000 + index,
+          };
+        }),
+      },
+      // writeOrder: buildWarehouseIcebergWriteOrder(sourceIdByColumnName),
+      properties: {
+        table_type: 'ICEBERG',
+        format: 'parquet',
+        write_compression: 'zstd',
+        // iceberg v3 isn't supported by Athena yet
+        // 'format-version': '3',
+      },
+    };
+
+    await this.s3TablesClient.send(
+      new CreateTableCommand({
+        tableBucketARN: options.tableBucketArn,
+        namespace: safeNamespace,
+        name: safeTable,
+        format: 'ICEBERG',
+        metadata: { iceberg },
+      })
+    );
+
   }
 }

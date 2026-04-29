@@ -6,20 +6,20 @@ import { DataWarehouseAwsClient } from './aws.ts';
 import type { WarehouseSourceTable } from './export.ts';
 import { asSqlIdentifier, DEFAULT_NAMESPACE } from './warehouse-sql.ts';
 
-/** Summary returned after namespace is ensured and each Iceberg table is verified in S3 Tables. */
+/** Summary returned after namespace and Iceberg tables are ensured in S3 Tables. */
 export interface MigrateTablesSummary {
   /** Iceberg namespace passed through {@link asSqlIdentifier} (same string when valid). */
   namespace: string;
-  /** Number of Iceberg tables verified present (migrate does not create tables). */
+  /** Number of Iceberg tables created or verified. */
   tableCount: number;
 }
 
 export interface MigrateOptions {
-  /** Postgres connection URI; used to verify each source table exists before S3 Tables checks. */
+  /** Postgres connection URI; used to verify each source table exists before S3 Tables provisioning. */
   databaseUrl: string;
   awsS3TableArn: string;
   s3Region: string;
-  /** Tables to verify in S3 Tables (same shape as `export` / `sync`, from `--table` Postgres names). */
+  /** Tables to provision in S3 Tables (same shape as `export` / `sync`, from `--table` Postgres names). */
   warehouseSources: WarehouseSourceTable[];
   namespace?: string;
   athenaWorkGroup?: string;
@@ -66,8 +66,10 @@ export async function verifyWarehousePostgresTablesExist(databaseUrl: string, po
 }
 
 /**
- * Ensures the S3 Tables namespace exists, then verifies each managed Iceberg table is already
- * registered in S3 Tables. Does not create Iceberg tables; missing tables cause a thrown error.
+ * Ensures S3 Tables namespace and Iceberg table definitions exist before data export/sync.
+ * Table creation is performed via AWS S3 Tables API, not SQL DDL. New tables get a
+ * `project_id` then `last_updated` write order and **sort** compaction; changing that on an
+ * already-created table is an AWS replacement / evolution concern, not handled here.
  *
  * @param options - The options for the migrate tables operation.
  * @returns The summary of the migrate tables operation.
@@ -88,7 +90,11 @@ export async function migrateTables(options: MigrateOptions): Promise<MigrateTab
   await dwClient.ensureNamespaceExists(options.awsS3TableArn, namespace);
 
   for (const spec of options.warehouseSources) {
-    await dwClient.assertIcebergTableExists(options.awsS3TableArn, namespace, spec.icebergTable);
+    await dwClient.createIcebergTable({
+      tableBucketArn: options.awsS3TableArn,
+      namespace,
+      tableName: spec.icebergTable,
+    });
   }
 
   return { namespace, tableCount: options.warehouseSources.length };

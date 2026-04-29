@@ -94,7 +94,7 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
       const tableExists = await athenaClient.tableExists(options.awsS3TableArn, namespace, icebergTable);
       if (!tableExists) {
         throw new Error(
-          `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Create it in AWS S3 Tables, then run migrate to verify prerequisites before sync.`
+          `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Run the migrate command before sync.`
         );
       }
 

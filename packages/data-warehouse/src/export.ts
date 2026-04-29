@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import fs from 'node:fs';
 import { DuckDBInstance } from '@duckdb/node-api';
 import { DataWarehouseAwsClient } from './aws.ts';
 import {
@@ -23,7 +24,6 @@ export interface WarehouseSourceTable {
   /** Keys row-threshold overrides and sync log lines (same as {@link icebergTable}). */
   readonly tableKey: string;
 }
-import fs from 'node:fs';
 
 export interface ExportOptions {
   databaseUrl: string;
@@ -67,7 +67,7 @@ const POSTGRES_WAREHOUSE_TABLE_SAFE = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /**
  * Map CLI `--table` to warehouse sources. Postgres names are used verbatim; Iceberg names are {@link toIcebergTableName}(postgres).
- * The `migrate` command checks these exist in Postgres and that matching Iceberg tables already exist in S3 Tables.
+ * The `migrate` command checks these exist in Postgres before provisioning S3 Tables.
  *
  * @param tableNames - Raw CLI tokens (trimmed per entry); each non-empty Postgres identifier must be `[A-Za-z][A-Za-z0-9_]*`.
  * @returns Deduplicated sources in first-seen order (by {@link WarehouseSourceTable.postgresTable}).
@@ -335,7 +335,7 @@ async function executeManagedIcebergExport(connection: DuckdbRunnable, options: 
     const exists = await athenaClient.tableExists(options.awsS3TableArn as string, namespace, icebergTable);
     if (!exists) {
       throw new Error(
-        `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Create it in AWS S3 Tables, then run migrate to verify prerequisites before export.`
+        `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Run the migrate command before export.`
       );
     }
     const mutations = buildManagedIcebergTableMutationQueries(options, spec);

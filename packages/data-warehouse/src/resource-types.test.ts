@@ -17,20 +17,16 @@ describe('parseCommaSeparatedTableNames', () => {
 });
 
 describe('warehouse partition strategy', () => {
-  it('defaults to project-only partitioning', () => {
-    const partitionSpec = getWarehousePartitionSpec({ icebergTableName: 'patient' });
-    expect(partitionSpec.key).toBe('project-only');
-    expect(partitionSpec.fields).toEqual([{ sourceColumn: 'project_id', transform: 'identity', name: 'project_id' }]);
-  });
+  const monthSpecFields = [
+    { sourceColumn: 'project_id' as const, transform: 'identity' as const, name: 'project_id' },
+    { sourceColumn: 'last_updated' as const, transform: 'month' as const, name: 'last_updated_month' },
+  ];
 
-  it('uses project + weekly last_updated for known Iceberg table names', () => {
-    for (const name of ['encounter_history', 'EncounteR_History']) {
+  it('defaults to project + monthly last_updated for any Iceberg table name', () => {
+    for (const name of ['patient', 'audit_event_history', 'encounter_history', 'EncounteR_History']) {
       const partitionSpec = getWarehousePartitionSpec({ icebergTableName: name });
-      expect(partitionSpec.key).toBe('project-and-last-updated-week');
-      expect(partitionSpec.fields).toEqual([
-        { sourceColumn: 'project_id', transform: 'identity', name: 'project_id' },
-        { sourceColumn: 'last_updated', transform: 'week', name: 'last_updated_week' },
-      ]);
+      expect(partitionSpec.key).toBe('project-and-last-updated-month');
+      expect(partitionSpec.fields).toEqual(monthSpecFields);
     }
   });
 });
