@@ -85,6 +85,8 @@ export function resolveDatabaseUrl(options: DatabaseConfigOptions): string {
 
 /**
  * Host, port, and database segment for logs. Omits credentials and query parameters.
+ * @param databaseUrl - Postgres connection URL string.
+ * @returns Human-readable host/port/database label, or "(invalid database URL)" if parsing fails.
  */
 export function formatPostgresTargetLabel(databaseUrl: string): string {
   try {

@@ -6,13 +6,9 @@ import {
   CreateTableCommand,
   DeleteTableCommand,
   GetTableCommand,
-  IcebergCompactionStrategy,
   IcebergNullOrder,
   IcebergSortDirection,
-  MaintenanceStatus,
-  PutTableMaintenanceConfigurationCommand,
   S3TablesClient,
-  TableMaintenanceType,
 } from '@aws-sdk/client-s3tables';
 import type { IcebergMetadata, IcebergSortOrder } from '@aws-sdk/client-s3tables';
 import { getWarehousePartitionSpec } from './resource-types.ts';
@@ -170,7 +166,7 @@ export class DataWarehouseAwsClient {
       { id: 4, name: 'last_updated', type: 'timestamp' },
       { id: 5, name: 'project_id', type: 'string' },
     ];
-    const sourceIdByColumnName = Object.fromEntries(schemaFields.map((f) => [f.name, f.id])) as Record<string, number>;
+    const sourceIdByColumnName = Object.fromEntries(schemaFields.map((f) => [f.name, f.id]));
     const iceberg: IcebergMetadata = {
       schema: {
         fields: schemaFields,

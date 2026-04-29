@@ -3,6 +3,8 @@
 
 /**
  * Parse a comma-separated CLI list of Postgres table names (trimmed, empty entries dropped).
+ * @param value - Raw comma-separated string from CLI or env, or undefined.
+ * @returns Non-empty array of table names, or undefined if input is missing or yields no names.
  */
 export function parseCommaSeparatedTableNames(value: string | undefined): string[] | undefined {
   if (!value) {
