@@ -10,14 +10,14 @@
   "license": "Apache-2.0",
   "author": "Medplum <hello@medplum.com>",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
   "bin": {
-    "medplum-data-warehouse": "./dist/index.js"
+    "medplum-data-warehouse": "./dist/main.js"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
-    "medplum-data-warehouse": "tsx src/index.ts",
+    "medplum-data-warehouse": "tsx src/main.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run"

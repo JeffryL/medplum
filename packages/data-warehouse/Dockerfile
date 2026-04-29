@@ -23,4 +23,4 @@ COPY --from=build-stage /usr/src/medplum/node_modules ./node_modules
 COPY --from=build-stage /usr/src/medplum/packages/data-warehouse/package.json ./packages/data-warehouse/package.json
 COPY --from=build-stage /usr/src/medplum/packages/data-warehouse/dist ./packages/data-warehouse/dist
 
-ENTRYPOINT ["node", "packages/data-warehouse/dist/index.js", "sync"]
+ENTRYPOINT ["node", "packages/data-warehouse/dist/main.js", "sync"]
