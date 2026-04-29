@@ -134,5 +134,6 @@ export async function downloadParquetFiles(options: DownloadParquetOptions): Pro
     return rows.length;
   } finally {
     connection.closeSync();
+    s3Client.destroy();
   }
 }
