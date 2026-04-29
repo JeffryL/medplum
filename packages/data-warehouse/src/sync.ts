@@ -3,12 +3,12 @@
 
 import { DuckDBInstance } from '@duckdb/node-api';
 import { DataWarehouseAwsClient } from './aws.ts';
+import type { WarehouseSourceTable } from './export.ts';
 import {
   buildManagedIcebergSetupQueries,
   buildProjectedSelectFromHistoryTable,
   WAREHOUSE_HISTORY_COLUMN_NAMES,
 } from './export.ts';
-import type { WarehouseSourceTable } from './export.ts';
 import {
   asSqlIdentifier,
   buildInsertIntoSelectQuery,

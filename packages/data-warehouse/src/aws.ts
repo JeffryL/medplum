@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import type { IcebergMetadata, IcebergSortOrder } from '@aws-sdk/client-s3tables';
 import {
   CreateNamespaceCommand,
   CreateTableCommand,
@@ -10,7 +11,6 @@ import {
   IcebergSortDirection,
   S3TablesClient,
 } from '@aws-sdk/client-s3tables';
-import type { IcebergMetadata, IcebergSortOrder } from '@aws-sdk/client-s3tables';
 import { getWarehousePartitionSpec } from './resource-types.ts';
 import { asSqlIdentifier } from './warehouse-sql.ts';
 
@@ -139,7 +139,10 @@ export class DataWarehouseAwsClient {
         })
       );
     } catch (error: any) {
-      if (typeof error?.name === 'string' && (error.name.includes('Conflict') || error.name.includes('AlreadyExists'))) {
+      if (
+        typeof error?.name === 'string' &&
+        (error.name.includes('Conflict') || error.name.includes('AlreadyExists'))
+      ) {
         return;
       }
       throw error;
@@ -204,6 +207,5 @@ export class DataWarehouseAwsClient {
         metadata: { iceberg },
       })
     );
-
   }
 }

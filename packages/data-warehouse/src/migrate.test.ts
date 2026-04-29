@@ -3,8 +3,8 @@
 
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startPostgresTestContainer } from './postgres-testcontainer.ts';
 import { verifyWarehousePostgresTablesExist } from './migrate.ts';
+import { startPostgresTestContainer } from './postgres-testcontainer.ts';
 
 describe('migrate Postgres verification', () => {
   let pgContainer: { stop(): Promise<void> } | undefined;
@@ -33,7 +33,9 @@ describe('migrate Postgres verification', () => {
   }, 30_000);
 
   it('accepts existing table names with exact relname match', async () => {
-    await expect(verifyWarehousePostgresTablesExist(databaseUrl, ['MigrateVerify_Patient_History'])).resolves.toBeUndefined();
+    await expect(
+      verifyWarehousePostgresTablesExist(databaseUrl, ['MigrateVerify_Patient_History'])
+    ).resolves.toBeUndefined();
   });
 
   it('rejects missing tables', async () => {

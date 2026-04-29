@@ -12,10 +12,10 @@ import {
   resolveAwsS3TableArn,
   resolveDatabaseUrl,
 } from './config.ts';
-import { parseCommaSeparatedTableNames } from './resource-types.ts';
 import { downloadParquetFiles } from './download.ts';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
 import { migrateTables } from './migrate.ts';
+import { parseCommaSeparatedTableNames } from './resource-types.ts';
 import { syncData } from './sync.ts';
 
 config();
@@ -23,9 +23,7 @@ config();
 export async function main(args: string[]): Promise<void> {
   const program = new Command();
 
-  program
-    .name('medplum-data-warehouse')
-    .description('Export Medplum Postgres data to S3 via DuckDB Iceberg tables');
+  program.name('medplum-data-warehouse').description('Export Medplum Postgres data to S3 via DuckDB Iceberg tables');
 
   program
     .command('export')
@@ -48,7 +46,10 @@ export async function main(args: string[]): Promise<void> {
       'AWS S3 Table ARN (optional)',
       process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN
     )
-    .option('-l, --local-path <path>', 'Write Parquet files to local directory instead of S3 (no AWS credentials needed)')
+    .option(
+      '-l, --local-path <path>',
+      'Write Parquet files to local directory instead of S3 (no AWS credentials needed)'
+    )
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option(
       '--athena-output-location <s3-uri>',
@@ -112,7 +113,9 @@ export async function main(args: string[]): Promise<void> {
         process.exit(1);
       }
       if (clean && resolvedAwsS3TableArn) {
-        console.error('Invalid options: --clean is no longer supported. Run the migrate command to create/replace tables.');
+        console.error(
+          'Invalid options: --clean is no longer supported. Run the migrate command to create/replace tables.'
+        );
         process.exit(1);
       }
 
@@ -137,7 +140,9 @@ export async function main(args: string[]): Promise<void> {
       });
       const tableNames = parseCommaSeparatedTableNames(table);
       if (!tableNames?.length) {
-        console.error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+        console.error(
+          'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+        );
         process.exit(1);
       }
       const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
@@ -234,7 +239,9 @@ export async function main(args: string[]): Promise<void> {
 
         const tableNames = parseCommaSeparatedTableNames(table);
         if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+          throw new Error(
+            'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+          );
         }
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 
@@ -357,7 +364,9 @@ export async function main(args: string[]): Promise<void> {
 
         const tableNames = parseCommaSeparatedTableNames(table);
         if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+          throw new Error(
+            'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+          );
         }
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 
