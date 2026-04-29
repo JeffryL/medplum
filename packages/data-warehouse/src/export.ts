@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from 'node:fs';
 import { DuckDBInstance } from '@duckdb/node-api';
 import { DataWarehouseAwsClient } from './aws.ts';
 import {
@@ -24,6 +23,7 @@ export interface WarehouseSourceTable {
   /** Keys row-threshold overrides and sync log lines (same as {@link icebergTable}). */
   readonly tableKey: string;
 }
+import fs from 'node:fs';
 
 export interface ExportOptions {
   databaseUrl: string;

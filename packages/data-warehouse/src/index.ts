@@ -48,7 +48,10 @@ export async function main(args: string[]): Promise<void> {
       'AWS S3 Table ARN (optional)',
       process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN
     )
-    .option('-l, --local-path <path>', 'Write Parquet files to local directory instead of S3 (no AWS credentials needed)')
+    .option(
+      '-l, --local-path <path>',
+      'Write Parquet files to local directory instead of S3 (no AWS credentials needed)'
+    )
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option(
       '--athena-output-location <s3-uri>',
