@@ -1,10 +1,6 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { config as loadDotenv } from 'dotenv';
-
-loadDotenv();
-
 /**
  * Default third arguments for commander `.option(…, …, default)` (from the process environment at module load).
  */

@@ -28,6 +28,7 @@ export interface SyncOptions {
   namespace?: string;
   defaultRowThreshold: number;
   rowThresholdOverrides?: Record<string, number>;
+  onProgress?: (message: string, metadata?: Record<string, string | number>) => void;
 }
 
 export interface SyncResourceResult {
@@ -56,6 +57,19 @@ export function getSyncAction(count: number, threshold: number): SyncAction {
   }
 
   return 'insert';
+}
+
+function logSyncProgress(
+  options: SyncOptions,
+  message: string,
+  metadata: Record<string, string | number> | undefined
+): void {
+  if (options.onProgress) {
+    options.onProgress(message, metadata);
+    return;
+  }
+
+  console.log(message);
 }
 
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
@@ -111,12 +125,30 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
           insertColumns,
           buildProjectedSelectFromHistoryTable(postgresTable, sourcePredicate)
         );
-        console.log(`Syncing ${tableKey}: ${count} rows (threshold ${threshold})`);
+        logSyncProgress(options, `Syncing ${tableKey}: ${count} rows (threshold ${threshold})`, {
+          table: icebergTable,
+          tableKey,
+          count,
+          threshold,
+          action,
+        });
         await connection.run(insertQuery);
       } else if (action === 'skip-threshold') {
-        console.log(`Skipping ${tableKey}: ${count} rows is below threshold ${threshold}`);
+        logSyncProgress(options, `Skipping ${tableKey}: ${count} rows is below threshold ${threshold}`, {
+          table: icebergTable,
+          tableKey,
+          count,
+          threshold,
+          action,
+        });
       } else {
-        console.log(`Skipping ${tableKey}: no new rows`);
+        logSyncProgress(options, `Skipping ${tableKey}: no new rows`, {
+          table: icebergTable,
+          tableKey,
+          count,
+          threshold,
+          action,
+        });
       }
 
       results.push({
