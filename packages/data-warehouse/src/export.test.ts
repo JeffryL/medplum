@@ -5,8 +5,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startPostgresTestContainer } from './postgres-testcontainer.ts';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
+import { startPostgresTestContainer } from './postgres-testcontainer.ts';
 import { buildAthenaCreateIcebergTableQuery } from './warehouse-sql.ts';
 
 describe('Data Warehouse Export', () => {
@@ -49,7 +49,6 @@ describe('Data Warehouse Export', () => {
         ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', '{"resourceType":"${resourceType}","meta":{"project":"${projectId}"},"event":3}', '2026-04-11 10:30:00+00', '${projectId}');
     `;
     await connection.run(sql);
-
 
     connection.closeSync();
 

@@ -9,20 +9,18 @@ import {
   resolveDatabaseUrl,
   resolveDataWarehouseServiceOptionsFromCli,
 } from './config.ts';
-import { parseCommaSeparatedTableNames } from './resource-types.ts';
+import { deleteWarehouseIcebergTables } from './delete-tables.ts';
 import { downloadParquetFiles } from './download.ts';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
-import { deleteWarehouseIcebergTables } from './delete-tables.ts';
 import { migrateTables } from './migrate.ts';
-import { asSqlIdentifier } from './warehouse-sql.ts';
+import { parseCommaSeparatedTableNames } from './resource-types.ts';
 import { syncData } from './sync.ts';
+import { asSqlIdentifier } from './warehouse-sql.ts';
 
 export async function main(args: string[]): Promise<void> {
   const program = new Command();
 
-  program
-    .name('medplum-data-warehouse')
-    .description('Export Medplum Postgres data to S3 via DuckDB Iceberg tables');
+  program.name('medplum-data-warehouse').description('Export Medplum Postgres data to S3 via DuckDB Iceberg tables');
 
   program
     .command('export')
@@ -143,7 +141,9 @@ export async function main(args: string[]): Promise<void> {
       });
       const tableNames = parseCommaSeparatedTableNames(table);
       if (!tableNames?.length) {
-        console.error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+        console.error(
+          'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+        );
         process.exit(1);
       }
       const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
@@ -243,7 +243,9 @@ export async function main(args: string[]): Promise<void> {
 
         const tableNames = parseCommaSeparatedTableNames(table);
         if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+          throw new Error(
+            'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+          );
         }
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 
@@ -303,7 +305,9 @@ export async function main(args: string[]): Promise<void> {
 
         const tableNames = parseCommaSeparatedTableNames(table);
         if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+          throw new Error(
+            'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+          );
         }
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 
@@ -422,7 +426,9 @@ export async function main(args: string[]): Promise<void> {
 
         const tableNames = parseCommaSeparatedTableNames(table);
         if (!tableNames?.length) {
-          throw new Error('Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)');
+          throw new Error(
+            'Missing or empty: --table (comma-separated Postgres table names, or set MEDPLUM_DATA_WAREHOUSE_TABLES)'
+          );
         }
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 

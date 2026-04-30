@@ -100,7 +100,6 @@ describe('Data Warehouse Export - Unit Tests', () => {
 
     // Postgres attach
     expect(queries).toContain("ATTACH 'postgresql://user:pass@localhost/db' AS pg_db (TYPE postgres);");
-
   });
 
   it('should build correct SQL queries for AWS S3 Tables managed Iceberg', () => {
@@ -133,7 +132,6 @@ describe('Data Warehouse Export - Unit Tests', () => {
     expect(queries).toContain(
       "ATTACH 'arn:aws:s3tables:us-west-2:123456789012:bucket/my-s3-tables-bucket' AS s3_tables_db ( TYPE iceberg, ENDPOINT_TYPE s3_tables );"
     );
-
   });
 
   it('does not emit DDL for managed Iceberg mutations', () => {
@@ -186,6 +184,5 @@ describe('Data Warehouse Export - Unit Tests', () => {
 
     // S3 secret should NOT be created
     expect(queries.find((q: string) => q.includes('CREATE SECRET'))).toBeUndefined();
-
   });
 });

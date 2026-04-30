@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from 'node:fs';
 import { DuckDBInstance } from '@duckdb/node-api';
+import fs from 'node:fs';
 import { DataWarehouseAwsClient } from './aws.ts';
 import { buildDuckdbPostgresAttachQuery } from './postgres-duckdb.ts';
 import {
@@ -121,7 +121,10 @@ export type DuckdbRunnable = { run(sql: string): Promise<unknown> };
  * @param qualifiedTable - Trusted `catalog.schema.table` identifier string.
  * @returns True if `SELECT 1 FROM … LIMIT 1` succeeds.
  */
-export async function probeManagedIcebergTableExists(connection: DuckdbRunnable, qualifiedTable: string): Promise<boolean> {
+export async function probeManagedIcebergTableExists(
+  connection: DuckdbRunnable,
+  qualifiedTable: string
+): Promise<boolean> {
   try {
     await connection.run(`SELECT 1 FROM ${qualifiedTable} LIMIT 1`);
     return true;
@@ -233,7 +236,9 @@ export function buildManagedIcebergSetupQueries(options: ManagedIcebergAttachOpt
   queries.push(`LOAD iceberg;`);
 
   if (!options.localPath) {
-    queries.push(`CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`);
+    queries.push(
+      `CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`
+    );
   }
 
   queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
@@ -284,7 +289,9 @@ export function buildExportQueries(options: ExportOptions): string[] {
   queries.push(`LOAD httpfs;`);
 
   if (!options.localPath) {
-    queries.push(`CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`);
+    queries.push(
+      `CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`
+    );
   }
 
   queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
