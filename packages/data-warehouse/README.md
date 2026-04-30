@@ -46,7 +46,6 @@ npx @medplum/data-warehouse export \
 
 Alternatively, you can provide configuration via environment variables (or a `.env` file):
 
-- `MEDPLUM_DATABASE_URL`: Postgres Database URL (if set, overrides individual fields below).
 - `MEDPLUM_DATABASE_HOST`: Postgres Database Host.
 - `MEDPLUM_DATABASE_PORT`: Postgres Database Port (defaults to `5432`).
 - `MEDPLUM_DATABASE_DBNAME`: Postgres Database Name.

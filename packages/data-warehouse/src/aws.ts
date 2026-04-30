@@ -185,6 +185,8 @@ export class DataWarehouseAwsClient {
           };
         }),
       },
+      // [Error: Not implemented Error: INSERT into a sorted iceberg table is not supported yet]
+      // https://github.com/duckdb/duckdb-iceberg/issues/851
       // writeOrder: buildWarehouseIcebergWriteOrder(sourceIdByColumnName),
       properties: {
         table_type: 'ICEBERG',

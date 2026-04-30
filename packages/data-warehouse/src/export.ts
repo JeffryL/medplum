@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import { DuckDBInstance } from '@duckdb/node-api';
 import { DataWarehouseAwsClient } from './aws.ts';
+import { buildDuckdbPostgresAttachQuery } from './postgres-duckdb.ts';
 import {
   asSqlIdentifier,
   buildInsertIntoSelectQuery,
@@ -203,12 +204,15 @@ export const WAREHOUSE_HISTORY_COLUMN_NAMES = ['id', 'version_id', 'content', 'l
 /**
  * Projects a Medplum history Postgres table into the warehouse column layout.
  *
+ * Rows are ordered by source `"lastUpdated"` so writers (Iceberg INSERT, Parquet COPY) emit
+ * physically sorted data for time-range locality within files.
+ *
  * @param sourceHistoryTable - Postgres table identifier exactly as stored (e.g. `Patient_history` or `Patient_History`).
  * @param whereClause - SQL boolean expression (joined with `AND` after non-empty content filter).
  * @returns DuckDB `SELECT` statement text (no trailing semicolon).
  */
 export function buildProjectedSelectFromHistoryTable(sourceHistoryTable: string, whereClause: string): string {
-  return `SELECT id, "versionId" AS version_id, content, "lastUpdated" AS last_updated, json_extract_string(content, '${PROJECT_ID_JSON_PATH}') AS project_id FROM pg_db."${sourceHistoryTable}" WHERE content IS NOT NULL AND content != '' AND (${whereClause})`;
+  return `SELECT id, "versionId" AS version_id, content, "lastUpdated" AS last_updated, json_extract_string(content, '${PROJECT_ID_JSON_PATH}') AS project_id FROM pg_db."${sourceHistoryTable}" WHERE content IS NOT NULL AND content != '' AND (${whereClause}) ORDER BY "lastUpdated"`;
 }
 
 /**
@@ -232,8 +236,7 @@ export function buildManagedIcebergSetupQueries(options: ManagedIcebergAttachOpt
     queries.push(`CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`);
   }
 
-  const escapedDatabaseUrl = escapeSqlLiteral(options.databaseUrl);
-  queries.push(`ATTACH '${escapedDatabaseUrl}' AS pg_db (TYPE postgres);`);
+  queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
 
   const escapedS3TableArn = escapeSqlLiteral(options.awsS3TableArn);
   queries.push(`ATTACH '${escapedS3TableArn}' AS s3_tables_db ( TYPE iceberg, ENDPOINT_TYPE s3_tables );`);
@@ -273,7 +276,6 @@ export function buildExportQueries(options: ExportOptions): string[] {
     return queries;
   }
 
-  const escapedDatabaseUrl = escapeSqlLiteral(options.databaseUrl);
   const sourceLastUpdatedWhere = getSourceLastUpdatedWindowWhereClause(options.startWindow, options.endWindow);
 
   queries.push(`INSTALL postgres;`);
@@ -285,7 +287,7 @@ export function buildExportQueries(options: ExportOptions): string[] {
     queries.push(`CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`);
   }
 
-  queries.push(`ATTACH '${escapedDatabaseUrl}' AS pg_db (TYPE postgres);`);
+  queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
 
   // Fallback: Write unmanaged partitioned Parquet files
   const s3Path = options.localPath || `s3://${options.s3Bucket}`;

@@ -11,7 +11,7 @@ import {
   parseDefaultRowThreshold,
   parseRowThresholdOverrides,
   resolveDatabaseUrl,
-} from './config.js';
+} from './config.ts';
 
 describe('config helpers', () => {
   it('formatPostgresTargetLabel omits credentials', () => {
@@ -46,24 +46,30 @@ describe('config helpers', () => {
     expect(out).not.toMatch(/options=-c\+statement_timeout/);
   });
 
-  it('mergePostgresStatementTimeout merges with existing options and replaces prior statement_timeout', () => {
-    const base = 'postgresql://u:p@h/db?options=-c%20statement_timeout%3D1s%20-c%20geqo%3Don';
-    const out = mergePostgresStatementTimeout(base, '15min');
-    const opts = new URL(out).searchParams.get('options') ?? '';
-    expect(opts).toContain('-c geqo=on');
-    expect(opts).toContain('-c statement_timeout=15min');
-    expect(opts).not.toContain('statement_timeout=1s');
+  it('mergePostgresStatementTimeout sets options and keeps other query parameters', () => {
+    const out = mergePostgresStatementTimeout('postgresql://u:p@h/db?sslmode=disable', '15min');
+    const url = new URL(out);
+    expect(url.searchParams.get('sslmode')).toBe('disable');
+    expect(url.searchParams.get('options')).toBe('-c statement_timeout=15min');
   });
 
   it('resolveDatabaseUrl applies default statement_timeout', () => {
-    const out = resolveDatabaseUrl({ databaseUrl: 'postgresql://u:p@localhost/db' });
+    const out = resolveDatabaseUrl({
+      dbHost: 'localhost',
+      dbName: 'db',
+      dbUsername: 'u',
+      dbPassword: 'p',
+    });
     const url = new URL(out);
     expect(url.searchParams.get('options')).toBe(`-c statement_timeout=${DEFAULT_DATABASE_STATEMENT_TIMEOUT}`);
   });
 
   it('resolveDatabaseUrl respects databaseStatementTimeout override', () => {
     const out = resolveDatabaseUrl({
-      databaseUrl: 'postgresql://u:p@localhost/db',
+      dbHost: 'localhost',
+      dbName: 'db',
+      dbUsername: 'u',
+      dbPassword: 'p',
       databaseStatementTimeout: '900s',
     });
     expect(new URL(out).searchParams.get('options')).toBe('-c statement_timeout=900s');
