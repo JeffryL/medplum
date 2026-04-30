@@ -4,10 +4,10 @@
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { verifyWarehousePostgresTablesExist } from './migrate.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.ts';
+import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
 
 describe('migrate Postgres verification', () => {
-  let pgContainer: { stop(): Promise<void> } | undefined;
+  let pgContainer: { stop(): Promise<unknown> } | undefined;
   let databaseUrl: string;
 
   beforeAll(async () => {

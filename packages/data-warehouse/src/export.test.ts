@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.ts';
+import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
 import { buildAthenaCreateIcebergTableQuery } from './warehouse-sql.ts';
 
 describe('Data Warehouse Export', () => {

@@ -15,14 +15,14 @@ import {
 
 /**
  * One Postgres source and its managed Iceberg table name.
- * {@link postgresTable} is used verbatim in SQL; {@link icebergTable} is used for S3 Tables / DuckDB paths.
+ * `postgresTable` is used verbatim in SQL; `icebergTable` is used for S3 Tables / DuckDB paths.
  */
 export interface WarehouseSourceTable {
   /** PostgreSQL table identifier as stored (double-quoted in SQL). */
   readonly postgresTable: string;
-  /** Managed Iceberg / S3 Tables name: {@link toIcebergTableName} of {@link postgresTable}. */
+  /** Managed Iceberg / S3 Tables name: result of `toIcebergTableName(postgresTable)`. */
   readonly icebergTable: string;
-  /** Keys row-threshold overrides and sync log lines (same as {@link icebergTable}). */
+  /** Keys row-threshold overrides and sync log lines (same as `icebergTable`). */
   readonly tableKey: string;
 }
 
@@ -34,7 +34,7 @@ export interface ExportOptions {
   athenaWorkGroup?: string;
   athenaCatalogName?: string;
   startWindow: string;
-  /** If omitted, export all rows with lastUpdated >= startWindow (no upper bound). */
+  /** If omitted, export all rows with lastUpdated \>= startWindow (no upper bound). */
   endWindow?: string;
   /**
    * Postgres source tables and derived Iceberg names, typically from `--table` (one or more).

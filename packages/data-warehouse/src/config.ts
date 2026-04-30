@@ -124,15 +124,23 @@ export function resolveAthenaCatalogName(value: string | undefined): string | un
   return value ?? process.env.MEDPLUM_ATHENA_CATALOG_NAME ?? process.env.ATHENA_CATALOG_NAME;
 }
 
+/* eslint-disable jsdoc/check-param-names, jsdoc/require-param */
 /**
- * @param options - Optional CLI flags for AWS S3 Tables and Athena.
- * @param options.awsS3TableArn - S3 table ARN (falls back to env when omitted).
- * @param options.athenaOutputLocation - Athena output S3 URI.
- * @param options.athenaWorkgroup - Athena workgroup name.
- * @param options.athenaCatalogName - Glue/Athena catalog name.
- * @returns Resolved values with the same env fallbacks as the individual `resolve*` helpers.
+ * Resolves AWS S3 Tables and Athena CLI values using the same environment fallbacks as the
+ * individual `resolve*` helpers.
+ *
+ * @param awsS3TableArn - S3 table ARN (falls back to env when omitted).
+ * @param athenaOutputLocation - Athena output S3 URI.
+ * @param athenaWorkgroup - Athena workgroup name.
+ * @param athenaCatalogName - Glue/Athena catalog name.
+ * @returns Resolved service options.
  */
-export function resolveDataWarehouseServiceOptionsFromCli(options: {
+export function resolveDataWarehouseServiceOptionsFromCli({
+  awsS3TableArn,
+  athenaOutputLocation,
+  athenaWorkgroup,
+  athenaCatalogName,
+}: {
   readonly awsS3TableArn?: string;
   readonly athenaOutputLocation?: string;
   readonly athenaWorkgroup?: string;
@@ -144,12 +152,13 @@ export function resolveDataWarehouseServiceOptionsFromCli(options: {
   readonly athenaCatalogName: string | undefined;
 } {
   return {
-    awsS3TableArn: resolveAwsS3TableArn(options.awsS3TableArn),
-    athenaOutputLocation: resolveAthenaOutputLocation(options.athenaOutputLocation),
-    athenaWorkGroup: resolveAthenaWorkGroup(options.athenaWorkgroup),
-    athenaCatalogName: resolveAthenaCatalogName(options.athenaCatalogName),
+    awsS3TableArn: resolveAwsS3TableArn(awsS3TableArn),
+    athenaOutputLocation: resolveAthenaOutputLocation(athenaOutputLocation),
+    athenaWorkGroup: resolveAthenaWorkGroup(athenaWorkgroup),
+    athenaCatalogName: resolveAthenaCatalogName(athenaCatalogName),
   };
 }
+/* eslint-enable jsdoc/check-param-names, jsdoc/require-param */
 
 export function parseDefaultRowThreshold(value: string | undefined): number {
   if (!value) {

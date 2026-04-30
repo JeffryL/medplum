@@ -16,4 +16,8 @@ describe('getSyncAction', () => {
   it('inserts when count reaches threshold', () => {
     expect(getSyncAction(1000, 1000)).toBe('insert');
   });
+
+  it('inserts for a single row when threshold is 1', () => {
+    expect(getSyncAction(1, 1)).toBe('insert');
+  });
 });

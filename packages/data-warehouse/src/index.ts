@@ -26,7 +26,7 @@ export {
   resolveWarehouseSourcesFromPostgresTableNames,
   toIcebergTableName,
 } from './export.ts';
-export type { ExportOptions, WarehouseSourceTable } from './export.ts';
+export type { ExportOptions, ManagedIcebergAttachOptions, WarehouseSourceTable } from './export.ts';
 
 export { getSyncAction, syncData } from './sync.ts';
-export type { SyncAction, SyncOptions, SyncResourceResult, SyncResult } from './sync.ts';
+export type { SyncAction, SyncDatabaseConnectionOptions, SyncOptions, SyncResourceResult, SyncResult } from './sync.ts';

@@ -6,7 +6,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, mergePostgresStatementTimeout, resolveDatabaseUrl } from './config.js';
 import { buildDuckdbPostgresAttachQuery } from './postgres-duckdb.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.ts';
+import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
 
 /**
  * Exercises `mergePostgresStatementTimeout` and `resolveDatabaseUrl` against a real Postgres

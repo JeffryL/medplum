@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
+import { resolveDatabaseUrl } from './config.ts';
 import { DataWarehouseAwsClient } from './aws.ts';
 import type { WarehouseSourceTable } from './export.ts';
 import {
@@ -17,7 +18,10 @@ import {
 } from './warehouse-sql.ts';
 
 export interface SyncOptions {
-  databaseUrl: string;
+  /**
+   * Explicit Postgres connection parameters for constructing the source connection URL.
+   */
+  database: SyncDatabaseConnectionOptions;
   s3Region: string;
   awsS3TableArn: string;
   s3Bucket?: string;
@@ -26,9 +30,18 @@ export interface SyncOptions {
   athenaCatalogName?: string;
   warehouseSources: WarehouseSourceTable[];
   namespace?: string;
-  defaultRowThreshold: number;
+  defaultRowThreshold?: number;
   rowThresholdOverrides?: Record<string, number>;
   onProgress?: (message: string, metadata?: Record<string, string | number>) => void;
+}
+
+export interface SyncDatabaseConnectionOptions {
+  host: string;
+  port?: number;
+  dbname: string;
+  username: string;
+  password: string;
+  statementTimeout?: string;
 }
 
 export interface SyncResourceResult {
@@ -45,8 +58,6 @@ export interface SyncResult {
 
 export type SyncAction = 'skip-empty' | 'skip-threshold' | 'insert';
 
-const MIN_WATERMARK_TIMESTAMP = '0001-01-01T00:00:00Z';
-
 export function getSyncAction(count: number, threshold: number): SyncAction {
   if (count === 0) {
     return 'skip-empty';
@@ -57,6 +68,20 @@ export function getSyncAction(count: number, threshold: number): SyncAction {
   }
 
   return 'insert';
+}
+
+function getThresholdForTable(
+  defaultThreshold: number | undefined,
+  overrides: Record<string, number>,
+  tableKey: string
+): number {
+  const thresholdCandidate = overrides[tableKey] ?? overrides.default ?? defaultThreshold;
+  if (thresholdCandidate !== undefined && Number.isFinite(thresholdCandidate) && thresholdCandidate > 0) {
+    return Math.floor(thresholdCandidate);
+  }
+
+  // No default threshold configured: insert whenever at least one row exists.
+  return 1;
 }
 
 function logSyncProgress(
@@ -72,9 +97,21 @@ function logSyncProgress(
   console.log(message);
 }
 
+function getSyncSourceConnectionUrl(options: SyncOptions): string {
+  return resolveDatabaseUrl({
+    dbHost: options.database.host,
+    dbPort: String(options.database.port ?? 5432),
+    dbName: options.database.dbname,
+    dbUsername: options.database.username,
+    dbPassword: options.database.password,
+    databaseStatementTimeout: options.database.statementTimeout,
+  });
+}
+
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
   const instance = await DuckDBInstance.create(':memory:');
   const connection = await instance.connect();
+  const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
   const athenaClient = new DataWarehouseAwsClient({
     region: options.s3Region,
@@ -87,10 +124,9 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
 
   try {
     for (const q of buildManagedIcebergSetupQueries({
-      databaseUrl: options.databaseUrl,
+      databaseUrl: sourceConnectionUrl,
       s3Region: options.s3Region,
       awsS3TableArn: options.awsS3TableArn,
-      namespace: options.namespace,
     })) {
       await connection.run(q);
     }
@@ -101,10 +137,13 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
 
     for (const spec of options.warehouseSources) {
       const { postgresTable, icebergTable, tableKey } = spec;
-      const threshold = overrides[tableKey] ?? overrides.default ?? options.defaultRowThreshold;
+      const threshold = getThresholdForTable(options.defaultRowThreshold, overrides, tableKey);
       const qualifiedIceberg = buildManagedIcebergQualifiedTable(namespace, icebergTable);
       const watermarkSubquery = `(SELECT MAX(last_updated) FROM ${qualifiedIceberg})`;
-      const sourcePredicate = `"lastUpdated" > COALESCE(${watermarkSubquery}, TIMESTAMPTZ '${MIN_WATERMARK_TIMESTAMP}')`;
+      // Incremental sync: only Postgres rows newer than the latest row already in Iceberg.
+      // When the Iceberg table is empty (or MAX is NULL), `lastUpdated > NULL` would be unknown for every row,
+      // so we treat a NULL watermark as "no high-water mark" and include all source rows instead of a sentinel timestamp.
+      const sourcePredicate = `(${watermarkSubquery} IS NULL OR "lastUpdated" > ${watermarkSubquery})`;
       const tableExists = await athenaClient.tableExists(options.awsS3TableArn, namespace, icebergTable);
       if (!tableExists) {
         throw new Error(

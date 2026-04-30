@@ -402,7 +402,8 @@ export async function main(args: string[]): Promise<void> {
       } = options;
 
       try {
-        const resolvedDatabaseUrl = resolveDatabaseUrl({
+        // Validate DB configuration using the same helper as other commands.
+        resolveDatabaseUrl({
           dbHost,
           dbPort,
           dbName,
@@ -434,7 +435,14 @@ export async function main(args: string[]): Promise<void> {
         const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
 
         const result = await syncData({
-          databaseUrl: resolvedDatabaseUrl,
+          database: {
+            host: dbHost,
+            port: Number.parseInt(dbPort, 10),
+            dbname: dbName,
+            username: dbUsername,
+            password: dbPassword,
+            statementTimeout: databaseStatementTimeout,
+          },
           s3Region,
           awsS3TableArn: resolvedAwsS3TableArn,
           athenaOutputLocation: resolvedAthenaOutputLocation,

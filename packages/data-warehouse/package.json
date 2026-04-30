@@ -1,6 +1,6 @@
 {
   "name": "@medplum/data-warehouse",
-  "version": "5.1.7",
+  "version": "5.1.9",
   "description": "Medplum Data Warehouse Export Tool",
   "repository": {
     "type": "git",
@@ -32,8 +32,8 @@
     "build": "npm run clean && tsc && node esbuild.mjs && npm run api-extractor",
     "clean": "rimraf dist",
     "medplum-data-warehouse": "tsx src/main.ts",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "test": "vitest run"
   },
   "dependencies": {
