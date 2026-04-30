@@ -14,7 +14,9 @@ import {
 } from './data-warehouse-sync';
 
 jest.mock('@medplum/data-warehouse', () => ({
-  mergePostgresStatementTimeout: jest.fn((url: string, timeout: string) => `${url}?options=-c%20statement_timeout%3D${timeout}`),
+  mergePostgresStatementTimeout: jest.fn(
+    (url: string, timeout: string) => `${url}?options=-c%20statement_timeout%3D${timeout}`
+  ),
   resolveWarehouseSourcesFromPostgresTableNames: jest.fn((tableNames: string[]) =>
     tableNames.map((tableName) => ({
       postgresTable: tableName,

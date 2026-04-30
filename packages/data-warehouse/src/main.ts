@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import 'dotenv/config';
 import { Command } from 'commander';
+import 'dotenv/config';
 import {
   dataWarehouseCliEnvDefaults,
   formatPostgresTargetLabel,
@@ -38,11 +38,7 @@ export async function main(args: string[]): Promise<void> {
     )
     .option('-s, --s3-bucket <bucket>', 'S3 Bucket name', dataWarehouseCliEnvDefaults.s3Bucket)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
-    .option(
-      '-a, --aws-s3-table-arn <arn>',
-      'AWS S3 Table ARN (optional)',
-      dataWarehouseCliEnvDefaults.awsS3TableArn
-    )
+    .option('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN (optional)', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option(
       '-l, --local-path <path>',
       'Write Parquet files to local directory instead of S3 (no AWS credentials needed)'
@@ -182,11 +178,7 @@ export async function main(args: string[]): Promise<void> {
       'Postgres statement_timeout merged into the connection URI for migrate checks (PostgreSQL duration, e.g. 15min, 900s; use 0 to disable)',
       dataWarehouseCliEnvDefaults.databaseStatementTimeout
     )
-    .requiredOption(
-      '-a, --aws-s3-table-arn <arn>',
-      'AWS S3 Table ARN',
-      dataWarehouseCliEnvDefaults.awsS3TableArn
-    )
+    .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option(
@@ -283,11 +275,7 @@ export async function main(args: string[]): Promise<void> {
     .description(
       'Delete managed Iceberg tables in S3 Tables derived from comma-separated Postgres table names (no Postgres connection)'
     )
-    .requiredOption(
-      '-a, --aws-s3-table-arn <arn>',
-      'AWS S3 Table ARN',
-      dataWarehouseCliEnvDefaults.awsS3TableArn
-    )
+    .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .requiredOption(
@@ -345,11 +333,7 @@ export async function main(args: string[]): Promise<void> {
       'Postgres statement_timeout for DuckDB-attached connections (PostgreSQL duration, e.g. 15min, 900s; use 0 to disable)',
       dataWarehouseCliEnvDefaults.databaseStatementTimeout
     )
-    .requiredOption(
-      '-a, --aws-s3-table-arn <arn>',
-      'AWS S3 Table ARN',
-      dataWarehouseCliEnvDefaults.awsS3TableArn
-    )
+    .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option(
@@ -466,7 +450,11 @@ export async function main(args: string[]): Promise<void> {
   program
     .command('download')
     .description('Download raw parquet files from an AWS S3 Table')
-    .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.downloadAwsS3TableArn)
+    .requiredOption(
+      '-a, --aws-s3-table-arn <arn>',
+      'AWS S3 Table ARN',
+      dataWarehouseCliEnvDefaults.downloadAwsS3TableArn
+    )
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
     .option('-t, --table <table>', 'Iceberg table name', 'audit_events')

@@ -1,18 +1,18 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import type { SyncOptions } from '@medplum/data-warehouse';
+import {
+  DEFAULT_DATABASE_STATEMENT_TIMEOUT,
+  resolveWarehouseSourcesFromPostgresTableNames,
+  syncData,
+} from '@medplum/data-warehouse';
 import type { Job, QueueBaseOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
 import type { MedplumDataWarehouseSyncConfig, MedplumServerConfig } from '../config/types';
 import { globalLogger } from '../logger';
 import type { WorkerInitializer, WorkerInitializerOptions } from './utils';
 import { getBullmqRedisConnectionOptions, getWorkerBullmqConfig, queueRegistry } from './utils';
-import {
-  DEFAULT_DATABASE_STATEMENT_TIMEOUT,
-  resolveWarehouseSourcesFromPostgresTableNames,
-  syncData
-} from '@medplum/data-warehouse';
-import type { SyncOptions } from '@medplum/data-warehouse';
 
 export interface DataWarehouseSyncJobData {
   trigger: 'scheduler';
