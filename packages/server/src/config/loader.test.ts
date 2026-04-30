@@ -345,6 +345,29 @@ describe('Config', () => {
     expect(config.workers?.bullmq).toStrictEqual({ subscription: { concurrency: 50 } });
   });
 
+  test('Env config dataWarehouseSync prefix', async () => {
+    setEnv('MEDPLUM_BASE_URL', 'http://localhost:3000');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_ENABLED', 'true');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_CRON', '0 * * * *');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_S3_REGION', 'us-east-1');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_AWS_S3_TABLE_ARN', 'arn:aws:s3tables:us-east-1:123456789012:bucket/test');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_WAREHOUSE_TABLES', '["Patient_history"]');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_DEFAULT_ROW_THRESHOLD', '2000');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_ROW_THRESHOLD_OVERRIDES', '{"default":1000,"patient_history":5000}');
+
+    const config = await loadConfig('env');
+    expect(config.dataWarehouseSync).toBeDefined();
+    expect(config.dataWarehouseSync?.enabled).toBe(true);
+    expect(config.dataWarehouseSync?.cron).toStrictEqual('0 * * * *');
+    expect(config.dataWarehouseSync?.s3Region).toStrictEqual('us-east-1');
+    expect(config.dataWarehouseSync?.awsS3TableArn).toStrictEqual(
+      'arn:aws:s3tables:us-east-1:123456789012:bucket/test'
+    );
+    expect(config.dataWarehouseSync?.warehouseTables).toStrictEqual(['Patient_history']);
+    expect(config.dataWarehouseSync?.defaultRowThreshold).toStrictEqual(2000);
+    expect(config.dataWarehouseSync?.rowThresholdOverrides).toStrictEqual({ default: 1000, patient_history: 5000 });
+  });
+
   test('Multi-source: file then env overlay', async () => {
     setEnv('MEDPLUM_PORT', '9999');
 

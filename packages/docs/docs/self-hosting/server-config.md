@@ -347,6 +347,85 @@ See [BullMQ Job Removal](https://docs.bullmq.io/guide/jobs/auto-removal).
 
 **Default:** `false`
 
+### dataWarehouseSync
+
+Optional configuration for the scheduled Data Warehouse sync worker. This worker runs incremental sync jobs via BullMQ on a fixed cron schedule.
+It uses `readonlyDatabase` connection settings when available; otherwise it falls back to `database`.
+
+#### dataWarehouseSync.enabled
+
+Enable or disable the scheduled Data Warehouse sync worker.
+
+**Default:** `false`
+
+#### dataWarehouseSync.cron
+
+Cron expression used for scheduling sync runs.
+
+**Default:** None
+
+#### dataWarehouseSync.databaseStatementTimeout
+
+Optional Postgres `statement_timeout` value (e.g. `15min`, `900s`) applied when deriving the sync Postgres URL from server `database` settings.
+
+**Default:** Uses `database.queryTimeout` when set, otherwise `15min`
+
+#### dataWarehouseSync.s3Region
+
+AWS region for S3 Tables / Athena operations.
+
+**Default:** None
+
+#### dataWarehouseSync.awsS3TableArn
+
+AWS S3 Table ARN for managed Iceberg table access.
+
+**Default:** None
+
+#### dataWarehouseSync.namespace
+
+Optional Iceberg namespace used by sync.
+
+**Default:** `default`
+
+#### dataWarehouseSync.warehouseTables
+
+Array of Postgres history table names to sync (for example `["Patient_history", "Observation_history"]`).
+
+**Default:** None
+
+#### dataWarehouseSync.defaultRowThreshold
+
+Minimum row count required before syncing a table.
+
+Set to `null` / unset to disable the default threshold (sync inserts whenever at least one row exists).
+
+**Default:** None
+
+#### dataWarehouseSync.rowThresholdOverrides
+
+Optional per-table row-threshold overrides object (keys use derived table identifiers, for example `patient_history`).
+
+**Default:** None
+
+#### dataWarehouseSync.athenaOutputLocation
+
+Optional Athena query output S3 location.
+
+**Default:** None
+
+#### dataWarehouseSync.athenaWorkGroup
+
+Optional Athena workgroup for sync metadata and DDL operations.
+
+**Default:** None
+
+#### dataWarehouseSync.athenaCatalogName
+
+Optional Athena catalog name for sync metadata and DDL operations.
+
+**Default:** None
+
 ### awsRegion
 
 The AWS Region identifier.

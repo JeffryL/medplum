@@ -48,6 +48,7 @@
     "@medplum/bot-layer": "5.1.9",
     "@medplum/ccda": "5.1.9",
     "@medplum/core": "5.1.9",
+    "@medplum/data-warehouse": "5.1.9",
     "@medplum/definitions": "5.1.9",
     "@medplum/fhir-router": "5.1.9",
     "@modelcontextprotocol/sdk": "1.29.0",

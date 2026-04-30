@@ -175,6 +175,12 @@ export interface MedplumServerConfig {
   workers?: MedplumWorkersConfig;
 
   /**
+   * Optional configuration for scheduled data warehouse sync jobs.
+   * Runs incremental `@medplum/data-warehouse` sync jobs on a fixed cron pattern.
+   */
+  dataWarehouseSync?: MedplumDataWarehouseSyncConfig;
+
+  /**
    * Optional mTLS certificate header for incoming requests.
    * If set, the server will attempt to extract the client certificate from the specified header.
    * Header name should be all lowercase.
@@ -282,7 +288,8 @@ export type WorkerName =
   | 'reindex'
   | 'batch'
   | 'post-deploy-migration'
-  | 'set-accounts';
+  | 'set-accounts'
+  | 'data-warehouse-sync';
 
 export interface MedplumWorkersConfig {
   /**
@@ -297,6 +304,35 @@ export interface MedplumWorkersConfig {
    * Only takes effect for workers that are enabled.
    */
   bullmq?: Partial<Record<WorkerName, Partial<MedplumBullmqConfig>>>;
+}
+
+export interface MedplumDataWarehouseSyncConfig {
+  /**
+   * Enables/disables the scheduled sync worker. Defaults to false.
+   */
+  enabled?: boolean;
+  /**
+   * BullMQ cron pattern used to schedule sync runs.
+   */
+  cron?: string;
+  /**
+   * Optional statement timeout applied when deriving the sync Postgres URL from server config.
+   * Uses PostgreSQL duration syntax, e.g. "15min" or "900s".
+   */
+  databaseStatementTimeout?: string;
+  s3Region?: string;
+  awsS3TableArn?: string;
+  namespace?: string;
+  warehouseTables?: string[];
+  /**
+   * Optional default row threshold. If null/undefined, there is no default threshold
+   * and sync will insert whenever at least one row is available.
+   */
+  defaultRowThreshold?: number | null;
+  rowThresholdOverrides?: Record<string, number>;
+  athenaOutputLocation?: string;
+  athenaWorkGroup?: string;
+  athenaCatalogName?: string;
 }
 
 export interface MedplumFissionConfig {
