@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import type { IcebergMetadata, IcebergSortOrder } from '@aws-sdk/client-s3tables';
+import type { IcebergMetadata, IcebergSortOrder, TableSummary } from '@aws-sdk/client-s3tables';
 import {
   CreateNamespaceCommand,
   CreateTableCommand,
@@ -9,6 +9,7 @@ import {
   GetTableCommand,
   IcebergNullOrder,
   IcebergSortDirection,
+  ListTablesCommand,
   S3TablesClient,
 } from '@aws-sdk/client-s3tables';
 import { getWarehousePartitionSpec } from './resource-types.ts';
@@ -25,6 +26,16 @@ export interface EnsureIcebergTableOptions {
   tableBucketArn: string;
   namespace: string;
   tableName: string;
+}
+
+export interface ListIcebergTablesOptions {
+  tableBucketArn: string;
+  /** When set, only tables in this namespace are listed (SQL-sanitized like other table APIs). */
+  namespace?: string;
+  /** Table name prefix filter passed through to `ListTables`. */
+  prefix?: string;
+  /** Page size for each `ListTables` request (optional; uses the service default when omitted). */
+  maxTablesPerRequest?: number;
 }
 
 export function getS3BucketNameFromS3TableArn(arn: string): string {
@@ -80,6 +91,32 @@ export class DataWarehouseAwsClient {
 
   constructor(options: DataWarehouseAwsClientOptions) {
     this.s3TablesClient = new S3TablesClient({ region: options.region });
+  }
+
+  /**
+   * Lists all tables in an S3 table bucket, following `continuationToken` pagination until complete.
+   *
+   * @param options - Table bucket ARN and optional namespace, name prefix, or page size.
+   * @returns Table summaries from {@link ListTablesCommand} across all pages.
+   */
+  async listIcebergTables(options: ListIcebergTablesOptions): Promise<TableSummary[]> {
+    const safeNamespace = options.namespace !== undefined ? asSqlIdentifier(options.namespace) : undefined;
+    const out: TableSummary[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const response = await this.s3TablesClient.send(
+        new ListTablesCommand({
+          tableBucketARN: options.tableBucketArn,
+          namespace: safeNamespace,
+          prefix: options.prefix,
+          continuationToken,
+          maxTables: options.maxTablesPerRequest,
+        })
+      );
+      out.push(...(response.tables ?? []));
+      continuationToken = response.continuationToken;
+    } while (continuationToken);
+    return out;
   }
 
   async tableExists(tableBucketArn: string, namespace: string, tableName: string): Promise<boolean> {

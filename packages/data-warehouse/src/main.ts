@@ -10,6 +10,7 @@ import {
   resolveDatabaseUrl,
   resolveDataWarehouseServiceOptionsFromCli,
 } from './config.ts';
+import { DataWarehouseAwsClient } from './aws.ts';
 import { deleteWarehouseIcebergTables } from './delete-tables.ts';
 import { downloadParquetFiles } from './download.ts';
 import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
@@ -328,6 +329,69 @@ export async function main(args: string[]): Promise<void> {
         }
       } catch (err) {
         console.error('Delete-table failed:', err);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command('list-tables')
+    .description('List Iceberg tables in an S3 table bucket (S3 Tables ListTables API; no Postgres connection)')
+    .requiredOption(
+      '-a, --aws-s3-table-arn <arn>',
+      'AWS S3 table bucket ARN',
+      dataWarehouseCliEnvDefaults.awsS3TableArn
+    )
+    .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
+    .option(
+      '-n, --namespace <namespace>',
+      'Iceberg namespace (omit to list tables in every namespace in this bucket)'
+    )
+    .option('--prefix <prefix>', 'Table name prefix filter')
+    .option('--json', 'Print a JSON array instead of a table')
+    .action(async (options) => {
+      const { awsS3TableArn, s3Region, namespace, prefix, json } = options;
+
+      try {
+        const { awsS3TableArn: resolvedAwsS3TableArn } = resolveDataWarehouseServiceOptionsFromCli({ awsS3TableArn });
+        if (!resolvedAwsS3TableArn) {
+          throw new Error('Missing required option: --aws-s3-table-arn');
+        }
+
+        const client = new DataWarehouseAwsClient({ region: s3Region });
+        const tables = await client.listIcebergTables({
+          tableBucketArn: resolvedAwsS3TableArn,
+          ...(namespace !== undefined && namespace !== '' ? { namespace } : {}),
+          ...(prefix !== undefined && prefix !== '' ? { prefix } : {}),
+        });
+
+        if (json) {
+          console.log(
+            JSON.stringify(
+              tables.map((t) => ({
+                namespace: t.namespace,
+                name: t.name,
+                type: t.type,
+                tableARN: t.tableARN,
+                createdAt: t.createdAt?.toISOString(),
+                modifiedAt: t.modifiedAt?.toISOString(),
+              })),
+              null,
+              2
+            )
+          );
+        } else {
+          console.log(`${tables.length} table(s) in ${resolvedAwsS3TableArn}`);
+          console.table(
+            tables.map((t) => ({
+              namespace: (t.namespace ?? []).join('.') || '(none)',
+              name: t.name ?? '',
+              type: t.type ?? '',
+              tableARN: t.tableARN ?? '',
+            }))
+          );
+        }
+      } catch (err) {
+        console.error('List-tables failed:', err);
         process.exit(1);
       }
     });
