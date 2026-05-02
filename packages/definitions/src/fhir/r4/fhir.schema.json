@@ -62141,7 +62141,8 @@
             "execute",
             "external",
             "google",
-            "password"
+            "password",
+            "pre-authorized"
           ]
         },
         "authTime": {
@@ -62178,6 +62179,10 @@
         "mfaVerified": {
           "description": "Whether the user has verified using multi-factor authentication (MFA). This will only be set is the user has MFA enabled (see User.mfaEnrolled).",
           "$ref": "#/definitions/boolean"
+        },
+        "expiresAt": {
+          "description": "The time at which a token will expire for this login.",
+          "$ref": "#/definitions/instant"
         },
         "granted": {
           "description": "Whether a token has been granted for this login.",

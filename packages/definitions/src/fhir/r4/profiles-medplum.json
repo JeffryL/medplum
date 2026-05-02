@@ -2807,6 +2807,21 @@
             }
           },
           {
+            "id" : "Login.expiresAt",
+            "path" : "Login.expiresAt",
+            "definition" : "The time at which a token will expire for this login.",
+            "min" : 0,
+            "max" : "1",
+            "type" : [{
+              "code" : "instant"
+            }],
+            "base" : {
+              "path" : "Login.expiresAt",
+              "min" : 0,
+              "max" : "1"
+            }
+          },
+          {
             "id" : "Login.granted",
             "path" : "Login.granted",
             "definition" : "Whether a token has been granted for this login.",
