@@ -62,9 +62,7 @@ export function mergePostgresStatementTimeout(databaseUrl: string, statementTime
   const optionsValue = `-c statement_timeout=${trimmed}`;
   const params = new URLSearchParams(url.search);
   params.set('options', optionsValue);
-  const query = [...params.entries()]
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join('&');
+  const query = [...params.entries()].map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
   url.search = query ? `?${query}` : '';
   return url.toString();
 }

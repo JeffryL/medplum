@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export {
-  dataWarehouseCliEnvDefaults,
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
   DEFAULT_ROW_THRESHOLD,
+  dataWarehouseCliEnvDefaults,
   formatPostgresTargetLabel,
   getThresholdForTableKey,
   mergePostgresStatementTimeout,

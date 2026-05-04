@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
-import { resolveDatabaseUrl } from './config.ts';
 import { DataWarehouseAwsClient } from './aws.ts';
+import { resolveDatabaseUrl } from './config.ts';
 import type { WarehouseSourceTable } from './export.ts';
 import {
   buildManagedIcebergSetupQueries,
