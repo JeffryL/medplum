@@ -32,6 +32,7 @@ import {
   assertAllLoaded,
   assertAllMatch,
   getSchedulingParametersGroup,
+  persistProposedAppointment,
   resolveAvailability,
   slotsOverlappingInterval,
 } from './utils/scheduling';
@@ -47,13 +48,15 @@ const bookOperation = {
   type: true,
   instance: false,
   parameter: [
-    { use: 'in', name: 'slot', type: 'Resource', min: 1, max: '*' },
+    { use: 'in', name: 'appointment', type: 'Resource', min: 0, max: '1' },
+    { use: 'in', name: 'slot', type: 'Resource', min: 0, max: '*' },
     { use: 'in', name: 'patient-reference', type: 'Reference', min: 0, max: '1' },
     { use: 'out', name: 'return', type: 'Bundle', min: 0, max: '1' },
   ],
 } as const satisfies OperationDefinition;
 
 type BookParameters = {
+  appointment?: Appointment;
   slot: Slot[];
   'patient-reference'?: Reference<Patient>;
 };
@@ -70,6 +73,20 @@ function serviceTypeTokens(slots: Slot[]): string[] {
   return [...tokenSet.values()];
 }
 
+async function bookFromProposedAppointmentHandler(proposedAppointment: Appointment): Promise<FhirResponse> {
+  const ctx = getAuthenticatedContext();
+  const bundle = await persistProposedAppointment(
+    ctx.repo,
+    withPath(proposedAppointment, 'Parameters.appointment'),
+    (appointment, _slots) => {
+      // Create appointment with "booked" status
+      appointment.status = 'booked';
+    }
+  );
+
+  return [created, buildOutputParameters(bookOperation, bundle)];
+}
+
 /**
  * Handles HTTP requests for the Appointment $book operation.
  *
@@ -82,6 +99,20 @@ function serviceTypeTokens(slots: Slot[]): string[] {
 export async function appointmentBookHandler(req: FhirRequest): Promise<FhirResponse> {
   const ctx = getAuthenticatedContext();
   const params = parseInputParameters<BookParameters>(bookOperation, req);
+
+  if (params.appointment) {
+    if (params.slot.length) {
+      throw new OperationOutcomeError(badRequest('Received exclusive parameters `slot` and `appointment`'));
+    }
+    if (params['patient-reference']) {
+      throw new OperationOutcomeError(
+        badRequest('`patient-reference` parameter not allowed with `appointment` parameter')
+      );
+    }
+
+    return bookFromProposedAppointmentHandler(params.appointment);
+  }
+
   const proposedSlots = withPaths(params.slot, 'Parameters.slot');
 
   assertAllMatch(proposedSlots, 'start', 'Mismatched slot start times');
@@ -89,6 +120,10 @@ export async function appointmentBookHandler(req: FhirRequest): Promise<FhirResp
   const { start, end } = proposedSlots[0];
   const startDate = new Date(start);
   const endDate = new Date(end);
+
+  // We intend to remove the older `Slot` based approach beyond here, probably
+  // around when we transition into the scheduling "beta" milestone. For now
+  // we support the original implementation path as well.
 
   if (params['patient-reference']) {
     // validate that the patient reference exists and is visible to the caller
