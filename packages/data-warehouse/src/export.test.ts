@@ -55,7 +55,7 @@ describe('Data Warehouse Export', () => {
     // Create temp dir for mock S3 Iceberg catalog
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iceberg-test-'));
     fs.mkdirSync(path.join(tempDir, 'audit_event_history'));
-  }, 10000);
+  }, 60_000);
 
   afterAll(async () => {
     if (pgContainer) {
