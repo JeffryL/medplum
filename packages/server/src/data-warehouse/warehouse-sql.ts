@@ -16,7 +16,7 @@ export function asSqlIdentifier(value: string): string {
 }
 
 /**
- * DuckDB `ATTACH` for a PostgreSQL server (postgres extension), using the same alias as export (`pg_db`).
+ * DuckDB `ATTACH` for a PostgreSQL server (postgres extension), using the same alias as other data-warehouse DuckDB flows (`pg_db`).
  *
  * @param databaseUrl - Full Postgres connection URI (including any `options` for session GUCs such as `statement_timeout`).
  * @param alias - Unquoted DuckDB catalog name (default `pg_db`).
@@ -39,40 +39,61 @@ export function buildInsertIntoSelectQuery(qualifiedTable: string, columns: stri
   return `INSERT INTO ${qualifiedTable} (${columns}) ${selectQuery};`;
 }
 
-export interface AthenaIcebergCreateTableOptions {
-  qualifiedTable: string;
-  columns: readonly { name: string; type: string }[];
-  partitionedBy: readonly string[];
-  location: string;
-  tableProperties?: Readonly<Record<string, string>>;
+const PROJECT_ID_JSON_PATH = '$.meta.project';
+
+/** Iceberg / Parquet column names written for each resource history row (order matters for INSERT). */
+export const WAREHOUSE_HISTORY_COLUMN_NAMES = ['id', 'version_id', 'content', 'last_updated', 'project_id'] as const;
+
+/**
+ * Projects a Medplum history Postgres table into the warehouse column layout.
+ *
+ * Rows are ordered by source `"lastUpdated"` so writers (Iceberg INSERT, Parquet COPY) emit
+ * physically sorted data for time-range locality within files.
+ *
+ * @param sourceHistoryTable - Postgres table identifier exactly as stored (e.g. `Patient_history` or `Patient_History`).
+ * @param whereClause - SQL boolean expression (joined with `AND` after non-empty content filter).
+ * @returns DuckDB `SELECT` statement text (no trailing semicolon).
+ */
+export function buildProjectedSelectFromHistoryTable(sourceHistoryTable: string, whereClause: string): string {
+  return `SELECT id, "versionId" AS version_id, content, "lastUpdated" AS last_updated, json_extract_string(content, '${PROJECT_ID_JSON_PATH}') AS project_id FROM pg_db."${sourceHistoryTable}" WHERE content IS NOT NULL AND content != '' AND (${whereClause}) ORDER BY "lastUpdated"`;
+}
+
+/** Options required to build managed Iceberg attach/setup SQL (extensions, secrets, attach). */
+export interface ManagedIcebergAttachOptions {
+  databaseUrl: string;
+  s3Region: string;
+  awsS3TableArn: string;
+  namespace?: string;
+  localPath?: string;
 }
 
 /**
- * Builds an Athena Iceberg CREATE TABLE statement using the documented
- * PARTITIONED BY + LOCATION + TBLPROPERTIES shape.
+ * DuckDB setup for managed Iceberg (extensions, optional S3 secret, Postgres attach, S3 Tables attach).
  *
- * @param options - Athena table name, columns, partition transforms, location, and table properties.
- * @returns SQL `CREATE TABLE` statement using Athena Iceberg syntax.
- * @see https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html
+ * @param options - Attach options; requires `awsS3TableArn`.
+ * @returns SQL strings to run in order before per-table mutations.
  */
-export function buildAthenaCreateIcebergTableQuery(options: AthenaIcebergCreateTableOptions): string {
-  if (options.columns.length === 0) {
-    throw new Error('Athena Iceberg CREATE TABLE requires at least one column');
-  }
-  if (options.partitionedBy.length === 0) {
-    throw new Error('Athena Iceberg CREATE TABLE requires at least one PARTITIONED BY expression');
+export function buildManagedIcebergSetupQueries(options: ManagedIcebergAttachOptions): string[] {
+  const queries: string[] = [];
+  queries.push(`INSTALL aws;`);
+  queries.push(`LOAD aws;`);
+  queries.push(`INSTALL postgres;`);
+  queries.push(`LOAD postgres;`);
+  queries.push(`INSTALL httpfs;`);
+  queries.push(`LOAD httpfs;`);
+  queries.push(`INSTALL iceberg;`);
+  queries.push(`LOAD iceberg;`);
+
+  if (!options.localPath) {
+    queries.push(
+      `CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`
+    );
   }
 
-  const columnsSql = options.columns.map((column) => `${asSqlIdentifier(column.name)} ${column.type}`).join(', ');
-  const partitionedBySql = options.partitionedBy.join(', ');
-  const tableProperties = {
-    table_type: 'ICEBERG',
-    ...(options.tableProperties ?? {}),
-  };
-  const tablePropertiesSql = Object.entries(tableProperties)
-    .map(([propertyName, propertyValue]) => `'${escapeSqlLiteral(propertyName)}'='${escapeSqlLiteral(propertyValue)}'`)
-    .join(', ');
-  const location = escapeSqlLiteral(options.location);
+  queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
 
-  return `CREATE TABLE ${options.qualifiedTable} (${columnsSql}) PARTITIONED BY (${partitionedBySql}) LOCATION '${location}' TBLPROPERTIES (${tablePropertiesSql});`;
+  const escapedS3TableArn = escapeSqlLiteral(options.awsS3TableArn);
+  queries.push(`ATTACH '${escapedS3TableArn}' AS s3_tables_db ( TYPE iceberg, ENDPOINT_TYPE s3_tables );`);
+
+  return queries;
 }

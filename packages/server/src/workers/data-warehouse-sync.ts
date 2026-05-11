@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SyncOptions } from '../data-warehouse';
-import {
-  DEFAULT_DATABASE_STATEMENT_TIMEOUT,
-  resolveWarehouseSourcesFromPostgresTableNames,
-  syncData,
-} from '../data-warehouse';
+import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
+import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, resolveWarehouseSourcesFromPostgresTableNames } from '../data-warehouse/config';
+import type { SyncOptions } from '../data-warehouse/sync';
+import { syncData } from '../data-warehouse/sync';
 import type { Job, QueueBaseOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
-import type { MedplumDataWarehouseSyncConfig, MedplumServerConfig } from '../config/types';
+import type { MedplumServerConfig } from '../config/types';
 import { globalLogger } from '../logger';
 import type { WorkerInitializer, WorkerInitializerOptions } from './utils';
 import { getBullmqRedisConnectionOptions, getWorkerBullmqConfig, queueRegistry } from './utils';
@@ -133,8 +131,23 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     throw new Error('dataWarehouseSync.defaultRowThreshold must be a positive integer');
   }
 
+  const dbConfig = config.readonlyDatabase ?? config.database;
+  const proxyEndpoint = config.readonlyDatabase
+    ? config.readonlyDatabaseProxyEndpoint
+    : config.databaseProxyEndpoint;
+  const resolvedDb = resolveMedplumDatabaseTcpConnection(dbConfig, proxyEndpoint);
+
+  const { host, dbname, username, password } = resolvedDb;
+  if (!host || !dbname || !username || !password) {
+    throw new Error('database host/dbname/username/password are required for data warehouse sync connection');
+  }
+
+  const databaseStatementTimeout =
+    syncConfig.databaseStatementTimeout ?? getDatabaseStatementTimeoutFromServerConfig(config);
+
   return {
-    database: getDataWarehouseSyncDatabaseConfig(config),
+    database: resolvedDb,
+    databaseStatementTimeout,
     s3Region,
     awsS3TableArn,
     namespace,
@@ -144,30 +157,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
   };
 }
 
-function getDataWarehouseSyncDatabaseConfig(config: MedplumServerConfig): SyncOptions['database'] {
-  const syncConfig = config.dataWarehouseSync as MedplumDataWarehouseSyncConfig;
-  const dbConfig = config.readonlyDatabase ?? config.database;
-  const host = dbConfig.host;
-  const dbname = dbConfig.dbname;
-  const username = dbConfig.username;
-  const password = dbConfig.password;
-  const port = dbConfig.port ?? 5432;
-
-  if (!host || !dbname || !username || !password) {
-    throw new Error('database host/dbname/username/password are required for data warehouse sync connection');
-  }
-
-  return {
-    host,
-    port,
-    dbname,
-    username,
-    password,
-    statementTimeout: syncConfig.databaseStatementTimeout ?? getDatabaseStatementTimeout(config),
-  };
-}
-
-function getDatabaseStatementTimeout(config: MedplumServerConfig): string {
+function getDatabaseStatementTimeoutFromServerConfig(config: MedplumServerConfig): string {
   const timeoutMs = config.database.queryTimeout;
   if (!timeoutMs || timeoutMs <= 0) {
     return DEFAULT_DATABASE_STATEMENT_TIMEOUT;

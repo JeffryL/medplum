@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { syncData } from '../data-warehouse';
 import type { Queue } from 'bullmq';
 import { Worker } from 'bullmq';
 import type { MedplumServerConfig } from '../config/types';
+import { syncData } from '../data-warehouse/sync';
 import {
   DataWarehouseSyncQueueName,
   DataWarehouseSyncSchedulerId,
@@ -13,17 +13,20 @@ import {
   refreshDataWarehouseSyncScheduler,
 } from './data-warehouse-sync';
 
-jest.mock('../data-warehouse', () => ({
-  mergePostgresStatementTimeout: jest.fn(
-    (url: string, timeout: string) => `${url}?options=-c%20statement_timeout%3D${timeout}`
-  ),
-  resolveWarehouseSourcesFromPostgresTableNames: jest.fn((tableNames: string[]) =>
-    tableNames.map((tableName) => ({
-      postgresTable: tableName,
-      icebergTable: tableName.toLowerCase(),
-      tableKey: tableName.toLowerCase(),
-    }))
-  ),
+jest.mock('../data-warehouse/config', () => {
+  const actual = jest.requireActual<typeof import('../data-warehouse/config')>('../data-warehouse/config');
+  return {
+    ...actual,
+    resolveWarehouseSourcesFromPostgresTableNames: jest.fn((tableNames: string[]) =>
+      tableNames.map((tableName) => ({
+        postgresTable: tableName,
+        icebergTable: tableName.toLowerCase(),
+        tableKey: tableName.toLowerCase(),
+      }))
+    ),
+  };
+});
+jest.mock('../data-warehouse/sync', () => ({
   syncData: jest.fn(async () => ({ resources: [{ action: 'insert' }, { action: 'skip-empty' }] })),
 }));
 jest.mock('bullmq');
@@ -104,11 +107,50 @@ describe('data-warehouse sync worker', () => {
       dbname: 'medplum_ro',
       username: 'medplum_readonly',
       password: 'readonly-secret',
-      statementTimeout: '45s',
     });
+    expect(result.databaseStatementTimeout).toStrictEqual('45s');
     expect(result.s3Region).toStrictEqual('us-east-1');
     expect(result.defaultRowThreshold).toBeUndefined();
     expect(result.warehouseSources).toHaveLength(2);
+  });
+
+  test('getDataWarehouseSyncOptions applies readonlyDatabaseProxyEndpoint like initPool', () => {
+    const config = buildConfig({
+      readonlyDatabaseProxyEndpoint: 'rds-proxy.example.com',
+    });
+    const result = getDataWarehouseSyncOptions(config);
+
+    expect(result.database.host).toStrictEqual('rds-proxy.example.com');
+    expect(result.database.ssl).toStrictEqual({ require: true });
+  });
+
+  test('getDataWarehouseSyncOptions merges ssl.require onto existing readonly ssl when proxy is set', () => {
+    const config = buildConfig({
+      readonlyDatabase: {
+        host: 'readonly-db.local',
+        port: 5432,
+        dbname: 'medplum_ro',
+        username: 'medplum_readonly',
+        password: 'readonly-secret',
+        ssl: { rejectUnauthorized: false },
+      },
+      readonlyDatabaseProxyEndpoint: 'rds-proxy.example.com',
+    });
+    const result = getDataWarehouseSyncOptions(config);
+
+    expect(result.database.host).toStrictEqual('rds-proxy.example.com');
+    expect(result.database.ssl).toStrictEqual({ rejectUnauthorized: false, require: true });
+  });
+
+  test('getDataWarehouseSyncOptions applies databaseProxyEndpoint when readonlyDatabase is absent', () => {
+    const config = buildConfig({
+      readonlyDatabase: undefined,
+      databaseProxyEndpoint: 'writer-proxy.example.com',
+    });
+    const result = getDataWarehouseSyncOptions(config);
+
+    expect(result.database.host).toStrictEqual('writer-proxy.example.com');
+    expect(result.database.ssl).toStrictEqual({ require: true });
   });
 
   test('getDataWarehouseSyncOptions validates enabled config', () => {
@@ -176,8 +218,8 @@ describe('data-warehouse sync worker', () => {
         dbname: 'medplum_ro',
         username: 'medplum_readonly',
         password: 'readonly-secret',
-        statementTimeout: '45s',
       },
+      databaseStatementTimeout: '45s',
       s3Region: 'us-east-1',
       awsS3TableArn: 'arn:aws:s3tables:us-east-1:123456789012:bucket/test',
       defaultRowThreshold: undefined,

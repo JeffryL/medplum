@@ -1,41 +1,69 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Default third arguments for commander `.option(…, …, default)` (from the process environment at module load).
- */
-export const dataWarehouseCliEnvDefaults = {
-  dbHost: process.env.MEDPLUM_DATABASE_HOST,
-  dbPort: process.env.MEDPLUM_DATABASE_PORT || '5432',
-  dbName: process.env.MEDPLUM_DATABASE_DBNAME,
-  dbUsername: process.env.MEDPLUM_DATABASE_USERNAME,
-  dbPassword: process.env.MEDPLUM_DATABASE_PASSWORD,
-  databaseStatementTimeout: process.env.MEDPLUM_DATABASE_STATEMENT_TIMEOUT ?? '15min',
-  s3Bucket: process.env.S3_BUCKET,
-  s3Region: process.env.AWS_REGION || 'us-east-1',
-  /** Primary env for S3 Table ARN (all commands that use managed Iceberg). */
-  awsS3TableArn: process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN,
-  /** Comma-separated table names (export / migrate / sync / delete-table). */
-  warehouseTableNames: process.env.MEDPLUM_DATA_WAREHOUSE_TABLES,
-  defaultRowThreshold: process.env.MEDPLUM_DATA_WAREHOUSE_DEFAULT_ROW_THRESHOLD,
-  rowThresholdsJson: process.env.MEDPLUM_DATA_WAREHOUSE_ROW_THRESHOLDS_JSON,
-  /** `download` command: required S3 table ARN (env-only default). */
-  downloadAwsS3TableArn: process.env.AWS_S3_TABLE_ARN,
-} as const;
-
-export const DEFAULT_ROW_THRESHOLD = 1000;
+import type { MedplumDatabaseConfig, MedplumDatabaseSslConfig } from '../config/types';
 
 /** Default Postgres `statement_timeout` applied to DuckDB-attached connections (PostgreSQL duration syntax). */
 export const DEFAULT_DATABASE_STATEMENT_TIMEOUT = '15min';
 
-export interface DatabaseConfigOptions {
-  dbHost?: string;
-  dbPort?: string;
-  dbName?: string;
-  dbUsername?: string;
-  dbPassword?: string;
-  /** Postgres `statement_timeout` (e.g. `15min`, `900s`). Overrides `MEDPLUM_DATABASE_STATEMENT_TIMEOUT` when set. */
-  databaseStatementTimeout?: string;
+const POSTGRES_WAREHOUSE_TABLE_SAFE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+function isInlinePem(value: string): boolean {
+  return value.trimStart().startsWith('-----BEGIN');
+}
+
+/**
+ * Sets libpq URI query parameters (`sslmode`, `sslrootcert`, `sslcert`, `sslkey`) from {@link MedplumDatabaseSslConfig}.
+ * Inline PEM strings are not supported in connection URIs; use filesystem paths (same limitation as libpq).
+ *
+ * @param url - Parsed `postgresql:` URL (mutated).
+ * @param ssl - Optional SSL options from server database config.
+ */
+function applyMedplumDatabaseSslToPostgresUrl(url: URL, ssl: MedplumDatabaseSslConfig | undefined): void {
+  if (!ssl) {
+    return;
+  }
+
+  const requireTls = ssl.require;
+  const rejectUnauthorized = ssl.rejectUnauthorized;
+
+  if (requireTls === false && !ssl.ca && !ssl.cert && !ssl.key) {
+    url.searchParams.set('sslmode', 'disable');
+    return;
+  }
+
+  const setPathParam = (param: 'sslrootcert' | 'sslcert' | 'sslkey', value: string | undefined): void => {
+    if (value === undefined) {
+      return;
+    }
+    if (isInlinePem(value)) {
+      throw new Error(
+        `database.ssl cannot use inline PEM in a Postgres connection URI (${param}). Use a filesystem path for DuckDB/libpq.`
+      );
+    }
+    url.searchParams.set(param, value);
+  };
+
+  setPathParam('sslrootcert', ssl.ca);
+  setPathParam('sslcert', ssl.cert);
+  setPathParam('sslkey', ssl.key);
+
+  const hasRootCert = url.searchParams.has('sslrootcert');
+  const hasClientCert = url.searchParams.has('sslcert') || url.searchParams.has('sslkey');
+
+  if (rejectUnauthorized === false) {
+    url.searchParams.set('sslmode', 'require');
+    return;
+  }
+
+  if (hasRootCert) {
+    url.searchParams.set('sslmode', 'verify-ca');
+    return;
+  }
+
+  if (requireTls === true || rejectUnauthorized === true || hasClientCert) {
+    url.searchParams.set('sslmode', 'verify-full');
+  }
 }
 
 /**
@@ -64,84 +92,94 @@ export function mergePostgresStatementTimeout(databaseUrl: string, statementTime
   return url.toString();
 }
 
-export function resolveDatabaseUrl(options: DatabaseConfigOptions): string {
-  const host = options.dbHost ?? process.env.MEDPLUM_DATABASE_HOST ?? process.env.DATABASE_HOST;
-  const port = options.dbPort ?? process.env.MEDPLUM_DATABASE_PORT ?? process.env.DATABASE_PORT ?? '5432';
-  const dbName = options.dbName ?? process.env.MEDPLUM_DATABASE_DBNAME ?? process.env.DATABASE_DBNAME;
-  const username = options.dbUsername ?? process.env.MEDPLUM_DATABASE_USERNAME ?? process.env.DATABASE_USERNAME;
-  const password = options.dbPassword ?? process.env.MEDPLUM_DATABASE_PASSWORD ?? process.env.DATABASE_PASSWORD;
+/**
+ * Builds a Postgres connection URI for DuckDB / libpq from {@link MedplumDatabaseConfig}, including
+ * `statement_timeout` via the URL `options` query parameter and TLS via `sslmode` / `sslrootcert` / `sslcert` / `sslkey`
+ * derived from {@link MedplumDatabaseConfig.ssl} in line with how `pg` uses the same object (encryption vs verify, CA paths).
+ * Pass the output of `resolveMedplumDatabaseTcpConnection` when using a proxy so host and `ssl.require` match `database.ts`.
+ *
+ * @param db - Medplum database settings; host, dbname, username, and password must be set.
+ * @param statementTimeout - Postgres `statement_timeout` duration (e.g. `15min`); empty uses {@link DEFAULT_DATABASE_STATEMENT_TIMEOUT}.
+ * @returns A `postgresql:` URI with `options=-c statement_timeout=...` encoded for libpq.
+ */
+export function buildPostgresUrlFromMedplumDatabaseConfig(
+  db: MedplumDatabaseConfig,
+  statementTimeout: string
+): string {
+  const host = db.host;
+  const dbname = db.dbname;
+  const username = db.username;
+  const password = db.password;
+  const port = db.port ?? 5432;
 
-  if (!host || !dbName || !username || !password) {
+  if (!host || !dbname || !username || !password) {
     throw new Error(
-      'Missing required database configuration. Set --db-host, --db-name, --db-username, and --db-password (or MEDPLUM_DATABASE_HOST, MEDPLUM_DATABASE_DBNAME, MEDPLUM_DATABASE_USERNAME, MEDPLUM_DATABASE_PASSWORD).'
+      'Missing required database configuration: host, dbname, username, and password are required.'
     );
   }
 
-  const baseUrl = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${dbName}`;
-
-  const statementTimeout =
-    options.databaseStatementTimeout?.trim() ||
-    process.env.MEDPLUM_DATABASE_STATEMENT_TIMEOUT?.trim() ||
-    DEFAULT_DATABASE_STATEMENT_TIMEOUT;
-
-  return mergePostgresStatementTimeout(baseUrl, statementTimeout);
+  const baseUrl = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${dbname}`;
+  const url = new URL(baseUrl);
+  applyMedplumDatabaseSslToPostgresUrl(url, db.ssl);
+  const trimmed = statementTimeout.trim();
+  return mergePostgresStatementTimeout(url.toString(), trimmed || DEFAULT_DATABASE_STATEMENT_TIMEOUT);
 }
 
 /**
- * Host, port, and database segment for logs. Omits credentials and query parameters.
- * @param databaseUrl - Postgres connection URL string.
- * @returns Human-readable host/port/database label, or "(invalid database URL)" if parsing fails.
+ * One Postgres source and its managed Iceberg table name.
+ * `postgresTable` is used verbatim in SQL; `icebergTable` is used for S3 Tables / DuckDB paths.
  */
-export function formatPostgresTargetLabel(databaseUrl: string): string {
-  try {
-    const url = new URL(databaseUrl);
-    const db = decodeURIComponent(url.pathname.replace(/^\//, '') || '(default)');
-    const host = url.hostname || 'localhost';
-    return url.port ? `${host}:${url.port}/${db}` : `${host}/${db}`;
-  } catch {
-    return '(invalid database URL)';
-  }
+export interface WarehouseSourceTable {
+  /** PostgreSQL table identifier as stored (double-quoted in SQL). */
+  readonly postgresTable: string;
+  /** Managed Iceberg / S3 Tables name: result of `toIcebergTableName(postgresTable)`. */
+  readonly icebergTable: string;
+  /** Keys row-threshold overrides and sync log lines (same as `icebergTable`). */
+  readonly tableKey: string;
 }
 
-export function resolveAwsS3TableArn(value: string | undefined): string | undefined {
-  return value ?? process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN;
+/**
+ * Normalize a Postgres table identifier to the managed Iceberg / Parquet path segment: insert underscores at camelCase
+ * breaks, then lowercase (non-alphanumeric except underscore → underscore).
+ *
+ * @param tableIdentifier - Postgres `relname`-style identifier (e.g. `AuditEvent_history`).
+ * @returns Normalized name (e.g. `audit_event_history`).
+ */
+function toIcebergTableName(tableIdentifier: string): string {
+  return tableIdentifier
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replaceAll(/[^a-zA-Z0-9_]/g, '_')
+    .toLowerCase();
 }
 
-export function parseDefaultRowThreshold(value: string | undefined): number {
-  if (!value) {
-    return DEFAULT_ROW_THRESHOLD;
-  }
-
-  const threshold = Number.parseInt(value, 10);
-  if (!Number.isFinite(threshold) || threshold <= 0) {
-    throw new Error(`Invalid default row threshold: ${value}`);
-  }
-
-  return threshold;
-}
-
-export function parseRowThresholdOverrides(value: string | undefined): Record<string, number> {
-  if (!value) {
-    return {};
-  }
-
-  const parsed = JSON.parse(value) as Record<string, number>;
-  const overrides: Record<string, number> = {};
-
-  for (const [tableKey, threshold] of Object.entries(parsed)) {
-    if (!Number.isFinite(threshold) || threshold <= 0) {
-      throw new Error(`Invalid row threshold override for ${tableKey}: ${threshold}`);
+/**
+ * Map CLI `--table` to warehouse sources. Postgres names are used verbatim; Iceberg names are {@link toIcebergTableName}(postgres).
+ * The `migrate` command checks these exist in Postgres before provisioning S3 Tables.
+ *
+ * @param tableNames - Raw CLI tokens (trimmed per entry); each non-empty Postgres identifier must be `[A-Za-z][A-Za-z0-9_]*`.
+ * @returns Deduplicated sources in first-seen order (by {@link WarehouseSourceTable.postgresTable}).
+ */
+export function resolveWarehouseSourcesFromPostgresTableNames(tableNames: string[]): WarehouseSourceTable[] {
+  const resolved: WarehouseSourceTable[] = [];
+  for (const raw of tableNames) {
+    const postgresTable = raw.trim();
+    if (!postgresTable) {
+      continue;
     }
-    overrides[tableKey] = Math.floor(threshold);
+
+    if (!POSTGRES_WAREHOUSE_TABLE_SAFE.test(postgresTable)) {
+      throw new Error(
+        `Invalid Postgres table name ${JSON.stringify(postgresTable)}: use only ASCII letters, digits, and underscore, starting with a letter (exact identifier for your database)`
+      );
+    }
+
+    const icebergTable = toIcebergTableName(postgresTable);
+    resolved.push({ postgresTable, icebergTable, tableKey: icebergTable });
   }
 
-  return overrides;
-}
+  if (resolved.length === 0) {
+    throw new Error('At least one Postgres table name is required when using --table');
+  }
 
-export function getThresholdForTableKey(
-  tableKey: string,
-  defaultThreshold: number,
-  overrides: Record<string, number>
-): number {
-  return overrides[tableKey] ?? overrides.default ?? defaultThreshold;
+  return [...new Map(resolved.map((s) => [s.postgresTable, s])).values()];
 }

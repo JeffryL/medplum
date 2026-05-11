@@ -2,43 +2,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
+import type { MedplumDatabaseConfig } from '../config/types';
 import { DataWarehouseAwsClient } from './aws';
-import { resolveDatabaseUrl } from './config';
-import type { WarehouseSourceTable } from './export';
-import {
-  buildManagedIcebergSetupQueries,
-  buildProjectedSelectFromHistoryTable,
-  WAREHOUSE_HISTORY_COLUMN_NAMES,
-} from './export';
+import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
+import type { WarehouseSourceTable } from './config';
 import {
   asSqlIdentifier,
   buildInsertIntoSelectQuery,
   buildManagedIcebergQualifiedTable,
+  buildManagedIcebergSetupQueries,
+  buildProjectedSelectFromHistoryTable,
   DEFAULT_NAMESPACE,
+  WAREHOUSE_HISTORY_COLUMN_NAMES,
 } from './warehouse-sql';
 
 export interface SyncOptions {
+  /** Same shape as server `database` / `readonlyDatabase` in `MedplumServerConfig`; host, dbname, username, and password are required when running sync. */
+  database: MedplumDatabaseConfig;
   /**
-   * Explicit Postgres connection parameters for constructing the source connection URL.
+   * Postgres `statement_timeout` for the DuckDB source URL (PostgreSQL duration syntax, e.g. `15min`, `45s`).
+   * When invoked from the server worker, use `dataWarehouseSync.databaseStatementTimeout` when set, otherwise derive from `MedplumServerConfig.database.queryTimeout` or the data-warehouse default.
    */
-  database: SyncDatabaseConnectionOptions;
+  databaseStatementTimeout: string;
   s3Region: string;
   awsS3TableArn: string;
-  s3Bucket?: string;
   warehouseSources: WarehouseSourceTable[];
   namespace?: string;
   defaultRowThreshold?: number;
   rowThresholdOverrides?: Record<string, number>;
   onProgress?: (message: string, metadata?: Record<string, string | number>) => void;
-}
-
-export interface SyncDatabaseConnectionOptions {
-  host: string;
-  port?: number;
-  dbname: string;
-  username: string;
-  password: string;
-  statementTimeout?: string;
 }
 
 export interface SyncResourceResult {
@@ -95,14 +87,7 @@ function logSyncProgress(
 }
 
 function getSyncSourceConnectionUrl(options: SyncOptions): string {
-  return resolveDatabaseUrl({
-    dbHost: options.database.host,
-    dbPort: String(options.database.port ?? 5432),
-    dbName: options.database.dbname,
-    dbUsername: options.database.username,
-    dbPassword: options.database.password,
-    databaseStatementTimeout: options.database.statementTimeout,
-  });
+  return buildPostgresUrlFromMedplumDatabaseConfig(options.database, options.databaseStatementTimeout);
 }
 
 export async function syncData(options: SyncOptions): Promise<SyncResult> {

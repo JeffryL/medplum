@@ -2,14 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
+import { rmSync } from 'node:fs';
 import pg from 'pg';
-import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, mergePostgresStatementTimeout, resolveDatabaseUrl } from './config';
+import {
+  buildPostgresUrlFromMedplumDatabaseConfig,
+  DEFAULT_DATABASE_STATEMENT_TIMEOUT,
+  mergePostgresStatementTimeout,
+} from './config';
+import { startPostgresSslTestContainer, startPostgresTestContainer } from './postgres-testcontainer.util';
 import { buildDuckdbPostgresAttachQuery } from './warehouse-sql';
-import { startPostgresTestContainer } from './postgres-testcontainer.util';
 
 /**
- * Exercises `mergePostgresStatementTimeout` and `resolveDatabaseUrl` against a real Postgres
- * and DuckDB’s postgres `ATTACH` (same path as `exportData`), so URL `options` encoding matches
+ * Exercises `mergePostgresStatementTimeout` and `buildPostgresUrlFromMedplumDatabaseConfig` against a real Postgres
+ * and DuckDB’s postgres `ATTACH` (same path as data-warehouse sync), so URL `options` encoding matches
  * what libpq/DuckDB expect (spaces must not be `+` in the `options` token).
  */
 describe('config (integration)', () => {
@@ -66,24 +71,29 @@ describe('config (integration)', () => {
     }
   }, 30_000);
 
-  it('resolveDatabaseUrl applies default and custom statement_timeout to the live URL', async () => {
-    const withDefault = resolveDatabaseUrl({
-      dbHost: host,
-      dbPort: String(port),
-      dbName: database,
-      dbUsername: username,
-      dbPassword: password,
-    });
+  it('buildPostgresUrlFromMedplumDatabaseConfig applies default and custom statement_timeout to the live URL', async () => {
+    const withDefault = buildPostgresUrlFromMedplumDatabaseConfig(
+      {
+        host,
+        port,
+        dbname: database,
+        username,
+        password,
+      },
+      ''
+    );
     expect(withDefault).toContain(`statement_timeout%3D${DEFAULT_DATABASE_STATEMENT_TIMEOUT}`);
 
-    const withOverride = resolveDatabaseUrl({
-      dbHost: host,
-      dbPort: String(port),
-      dbName: database,
-      dbUsername: username,
-      dbPassword: password,
-      databaseStatementTimeout: '6s',
-    });
+    const withOverride = buildPostgresUrlFromMedplumDatabaseConfig(
+      {
+        host,
+        port,
+        dbname: database,
+        username,
+        password,
+      },
+      '6s'
+    );
     const c = new pg.Client({ connectionString: withOverride });
     await c.connect();
     try {
@@ -94,20 +104,105 @@ describe('config (integration)', () => {
     }
   }, 30_000);
 
-  it('resolveDatabaseUrl from discrete fields matches merge + connect', async () => {
-    const url = resolveDatabaseUrl({
-      dbHost: host,
-      dbPort: String(port),
-      dbName: database,
-      dbUsername: username,
-      dbPassword: password,
-      databaseStatementTimeout: '3s',
-    });
+  it('buildPostgresUrlFromMedplumDatabaseConfig connects with expected statement_timeout', async () => {
+    const url = buildPostgresUrlFromMedplumDatabaseConfig(
+      {
+        host,
+        port,
+        dbname: database,
+        username,
+        password,
+      },
+      '3s'
+    );
     const client = new pg.Client({ connectionString: url });
     await client.connect();
     try {
       const { rows } = await client.query(`select current_setting('statement_timeout') as t`);
       expect(rows[0]?.t).toBe('3s');
+    } finally {
+      await client.end();
+    }
+  }, 30_000);
+});
+
+describe('buildPostgresUrlFromMedplumDatabaseConfig (SSL, integration)', () => {
+  let container: { stop(): Promise<unknown> } | undefined;
+  let sslDir: string | undefined;
+  let host: string;
+  let port: number;
+  let database: string;
+  let username: string;
+  let password: string;
+  let caCertPath: string;
+
+  beforeAll(async () => {
+    const started = await startPostgresSslTestContainer();
+    container = started.container;
+    sslDir = started.sslDir;
+    host = started.host;
+    port = started.port;
+    database = started.database;
+    username = started.username;
+    password = started.password;
+    caCertPath = started.caCertPath;
+  }, 120_000);
+
+  afterAll(async () => {
+    if (container) {
+      await container.stop();
+    }
+    if (sslDir) {
+      rmSync(sslDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('connects when ssl.rejectUnauthorized is false (sslmode=require)', async () => {
+    const url = buildPostgresUrlFromMedplumDatabaseConfig(
+      {
+        host,
+        port,
+        dbname: database,
+        username,
+        password,
+        ssl: { require: true, rejectUnauthorized: false },
+      },
+      '5s'
+    );
+    expect(new URL(url).searchParams.get('sslmode')).toBe('require');
+
+    // Node pg currently maps sslmode=require to verify-full unless uselibpqcompat=true (see pg-connection-string warning).
+    const client = new pg.Client({ connectionString: `${url}&uselibpqcompat=true` });
+    await client.connect();
+    try {
+      const { rows } = await client.query(`select 1 as ok`);
+      expect(rows[0]?.ok).toBe(1);
+    } finally {
+      await client.end();
+    }
+  }, 30_000);
+
+  it('connects when ssl.rejectUnauthorized is true and ca is a filesystem path (verify-ca)', async () => {
+    const url = buildPostgresUrlFromMedplumDatabaseConfig(
+      {
+        host,
+        port,
+        dbname: database,
+        username,
+        password,
+        ssl: { require: true, rejectUnauthorized: true, ca: caCertPath },
+      },
+      '5s'
+    );
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('sslmode')).toBe('verify-ca');
+    expect(parsed.searchParams.get('sslrootcert')).toBe(caCertPath);
+
+    const client = new pg.Client({ connectionString: `${url}&uselibpqcompat=true` });
+    await client.connect();
+    try {
+      const { rows } = await client.query(`select 1 as ok`);
+      expect(rows[0]?.ok).toBe(1);
     } finally {
       await client.end();
     }
