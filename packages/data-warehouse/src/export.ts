@@ -30,9 +30,6 @@ export interface ExportOptions {
   databaseUrl: string;
   s3Bucket?: string;
   s3Region: string;
-  athenaOutputLocation?: string;
-  athenaWorkGroup?: string;
-  athenaCatalogName?: string;
   startWindow: string;
   /** If omitted, export all rows with lastUpdated \>= startWindow (no upper bound). */
   endWindow?: string;
@@ -328,11 +325,8 @@ async function runExportQuery(connection: DuckdbRunnable, query: string): Promis
 async function executeManagedIcebergExport(connection: DuckdbRunnable, options: ExportOptions): Promise<void> {
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
   const sources = resolveWarehouseSources(options);
-  const athenaClient = new DataWarehouseAwsClient({
+  const dwClient = new DataWarehouseAwsClient({
     region: options.s3Region,
-    outputLocation: options.athenaOutputLocation,
-    workGroup: options.athenaWorkGroup,
-    catalogName: options.athenaCatalogName,
   });
 
   for (const q of buildManagedIcebergSetupQueries(toManagedIcebergAttachOptions(options))) {
@@ -341,7 +335,7 @@ async function executeManagedIcebergExport(connection: DuckdbRunnable, options: 
 
   for (const spec of sources) {
     const { icebergTable } = spec;
-    const exists = await athenaClient.tableExists(options.awsS3TableArn as string, namespace, icebergTable);
+    const exists = await dwClient.tableExists(options.awsS3TableArn as string, namespace, icebergTable);
     if (!exists) {
       throw new Error(
         `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Run the migrate command before export.`

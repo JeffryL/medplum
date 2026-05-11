@@ -118,17 +118,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     throw new Error('dataWarehouseSync.enabled must be true to run scheduled sync');
   }
 
-  const {
-    s3Region,
-    awsS3TableArn,
-    warehouseTables,
-    defaultRowThreshold,
-    rowThresholdOverrides,
-    namespace,
-    athenaOutputLocation,
-    athenaWorkGroup,
-    athenaCatalogName,
-  } = syncConfig;
+  const { s3Region, awsS3TableArn, warehouseTables, defaultRowThreshold, rowThresholdOverrides, namespace } = syncConfig;
 
   if (!s3Region) {
     throw new Error('dataWarehouseSync.s3Region is required');
@@ -148,9 +138,6 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     s3Region,
     awsS3TableArn,
     namespace,
-    athenaOutputLocation,
-    athenaWorkGroup,
-    athenaCatalogName,
     warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(warehouseTables),
     defaultRowThreshold: defaultRowThreshold ?? undefined,
     rowThresholdOverrides,

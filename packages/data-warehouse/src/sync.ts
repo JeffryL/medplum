@@ -25,9 +25,6 @@ export interface SyncOptions {
   s3Region: string;
   awsS3TableArn: string;
   s3Bucket?: string;
-  athenaOutputLocation?: string;
-  athenaWorkGroup?: string;
-  athenaCatalogName?: string;
   warehouseSources: WarehouseSourceTable[];
   namespace?: string;
   defaultRowThreshold?: number;
@@ -113,11 +110,8 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
   const connection = await instance.connect();
   const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
-  const athenaClient = new DataWarehouseAwsClient({
+  const dwClient = new DataWarehouseAwsClient({
     region: options.s3Region,
-    outputLocation: options.athenaOutputLocation,
-    workGroup: options.athenaWorkGroup,
-    catalogName: options.athenaCatalogName,
   });
   const overrides = options.rowThresholdOverrides ?? {};
   const results: SyncResourceResult[] = [];
@@ -144,7 +138,7 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
       // When the Iceberg table is empty (or MAX is NULL), `lastUpdated > NULL` would be unknown for every row,
       // so we treat a NULL watermark as "no high-water mark" and include all source rows instead of a sentinel timestamp.
       const sourcePredicate = `(${watermarkSubquery} IS NULL OR "lastUpdated" > ${watermarkSubquery})`;
-      const tableExists = await athenaClient.tableExists(options.awsS3TableArn, namespace, icebergTable);
+      const tableExists = await dwClient.tableExists(options.awsS3TableArn, namespace, icebergTable);
       if (!tableExists) {
         throw new Error(
           `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Run the migrate command before sync.`

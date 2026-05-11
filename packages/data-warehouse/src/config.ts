@@ -15,9 +15,6 @@ export const dataWarehouseCliEnvDefaults = {
   s3Region: process.env.AWS_REGION || 'us-east-1',
   /** Primary env for S3 Table ARN (all commands that use managed Iceberg). */
   awsS3TableArn: process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN,
-  athenaOutputLocation: process.env.MEDPLUM_ATHENA_OUTPUT_LOCATION ?? process.env.ATHENA_OUTPUT_LOCATION,
-  athenaWorkGroup: process.env.MEDPLUM_ATHENA_WORKGROUP ?? process.env.ATHENA_WORKGROUP,
-  athenaCatalogName: process.env.MEDPLUM_ATHENA_CATALOG_NAME ?? process.env.ATHENA_CATALOG_NAME,
   /** Comma-separated table names (export / migrate / sync / delete-table). */
   warehouseTableNames: process.env.MEDPLUM_DATA_WAREHOUSE_TABLES,
   defaultRowThreshold: process.env.MEDPLUM_DATA_WAREHOUSE_DEFAULT_ROW_THRESHOLD,
@@ -109,54 +106,6 @@ export function formatPostgresTargetLabel(databaseUrl: string): string {
 export function resolveAwsS3TableArn(value: string | undefined): string | undefined {
   return value ?? process.env.MEDPLUM_AWS_S3_TABLE_ARN ?? process.env.AWS_S3_TABLE_ARN;
 }
-
-export function resolveAthenaOutputLocation(value: string | undefined): string | undefined {
-  return value ?? process.env.MEDPLUM_ATHENA_OUTPUT_LOCATION ?? process.env.ATHENA_OUTPUT_LOCATION;
-}
-
-export function resolveAthenaWorkGroup(value: string | undefined): string | undefined {
-  return value ?? process.env.MEDPLUM_ATHENA_WORKGROUP ?? process.env.ATHENA_WORKGROUP;
-}
-
-export function resolveAthenaCatalogName(value: string | undefined): string | undefined {
-  return value ?? process.env.MEDPLUM_ATHENA_CATALOG_NAME ?? process.env.ATHENA_CATALOG_NAME;
-}
-
-/* eslint-disable jsdoc/check-param-names, jsdoc/require-param */
-/**
- * Resolves AWS S3 Tables and Athena CLI values using the same environment fallbacks as the
- * individual `resolve*` helpers.
- *
- * @param awsS3TableArn - S3 table ARN (falls back to env when omitted).
- * @param athenaOutputLocation - Athena output S3 URI.
- * @param athenaWorkgroup - Athena workgroup name.
- * @param athenaCatalogName - Glue/Athena catalog name.
- * @returns Resolved service options.
- */
-export function resolveDataWarehouseServiceOptionsFromCli({
-  awsS3TableArn,
-  athenaOutputLocation,
-  athenaWorkgroup,
-  athenaCatalogName,
-}: {
-  readonly awsS3TableArn?: string;
-  readonly athenaOutputLocation?: string;
-  readonly athenaWorkgroup?: string;
-  readonly athenaCatalogName?: string;
-}): {
-  readonly awsS3TableArn: string | undefined;
-  readonly athenaOutputLocation: string | undefined;
-  readonly athenaWorkGroup: string | undefined;
-  readonly athenaCatalogName: string | undefined;
-} {
-  return {
-    awsS3TableArn: resolveAwsS3TableArn(awsS3TableArn),
-    athenaOutputLocation: resolveAthenaOutputLocation(athenaOutputLocation),
-    athenaWorkGroup: resolveAthenaWorkGroup(athenaWorkgroup),
-    athenaCatalogName: resolveAthenaCatalogName(athenaCatalogName),
-  };
-}
-/* eslint-enable jsdoc/check-param-names, jsdoc/require-param */
 
 export function parseDefaultRowThreshold(value: string | undefined): number {
   if (!value) {

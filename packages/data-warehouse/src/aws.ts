@@ -17,9 +17,6 @@ import { asSqlIdentifier } from './warehouse-sql.ts';
 
 export interface DataWarehouseAwsClientOptions {
   region: string;
-  workGroup?: string;
-  outputLocation?: string;
-  catalogName?: string;
 }
 
 export interface EnsureIcebergTableOptions {

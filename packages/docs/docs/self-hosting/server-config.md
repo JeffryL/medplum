@@ -372,7 +372,7 @@ Optional Postgres `statement_timeout` value (e.g. `15min`, `900s`) applied when 
 
 #### dataWarehouseSync.s3Region
 
-AWS region for S3 Tables / Athena operations.
+AWS region for S3 Tables operations.
 
 **Default:** None
 
@@ -405,24 +405,6 @@ Set to `null` / unset to disable the default threshold (sync inserts whenever at
 #### dataWarehouseSync.rowThresholdOverrides
 
 Optional per-table row-threshold overrides object (keys use derived table identifiers, for example `patient_history`).
-
-**Default:** None
-
-#### dataWarehouseSync.athenaOutputLocation
-
-Optional Athena query output S3 location.
-
-**Default:** None
-
-#### dataWarehouseSync.athenaWorkGroup
-
-Optional Athena workgroup for sync metadata and DDL operations.
-
-**Default:** None
-
-#### dataWarehouseSync.athenaCatalogName
-
-Optional Athena catalog name for sync metadata and DDL operations.
 
 **Default:** None
 

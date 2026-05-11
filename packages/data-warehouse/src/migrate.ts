@@ -22,8 +22,6 @@ export interface MigrateOptions {
   /** Tables to provision in S3 Tables (same shape as `export` / `sync`, from `--table` Postgres names). */
   warehouseSources: WarehouseSourceTable[];
   namespace?: string;
-  athenaWorkGroup?: string;
-  athenaCatalogName?: string;
 }
 
 /**
@@ -83,8 +81,6 @@ export async function migrateTables(options: MigrateOptions): Promise<MigrateTab
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
   const dwClient = new DataWarehouseAwsClient({
     region: options.s3Region,
-    workGroup: options.athenaWorkGroup,
-    catalogName: options.athenaCatalogName,
   });
 
   await dwClient.ensureNamespaceExists(options.awsS3TableArn, namespace);

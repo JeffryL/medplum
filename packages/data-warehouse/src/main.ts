@@ -7,8 +7,8 @@ import {
   formatPostgresTargetLabel,
   parseDefaultRowThreshold,
   parseRowThresholdOverrides,
+  resolveAwsS3TableArn,
   resolveDatabaseUrl,
-  resolveDataWarehouseServiceOptionsFromCli,
 } from './config.ts';
 import { DataWarehouseAwsClient } from './aws.ts';
 import { deleteWarehouseIcebergTables } from './delete-tables.ts';
@@ -45,21 +45,6 @@ export async function main(args: string[]): Promise<void> {
       'Write Parquet files to local directory instead of S3 (no AWS credentials needed)'
     )
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
-    .option(
-      '--athena-output-location <s3-uri>',
-      'Athena query result output location (optional if workgroup enforces output location)',
-      dataWarehouseCliEnvDefaults.athenaOutputLocation
-    )
-    .option(
-      '--athena-workgroup <name>',
-      'Athena workgroup for DDL operations',
-      dataWarehouseCliEnvDefaults.athenaWorkGroup
-    )
-    .option(
-      '--athena-catalog-name <name>',
-      'Athena catalog name for table metadata and DDL',
-      dataWarehouseCliEnvDefaults.athenaCatalogName
-    )
     .requiredOption(
       '-t, --table <names>',
       'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES). Managed Iceberg names are derived from each identifier (snake_case, lowercased).',
@@ -87,26 +72,13 @@ export async function main(args: string[]): Promise<void> {
         awsS3TableArn,
         localPath,
         namespace,
-        athenaOutputLocation,
-        athenaWorkgroup,
-        athenaCatalogName,
         table,
         startWindow,
         endWindow,
         clean,
       } = options;
 
-      const {
-        awsS3TableArn: resolvedAwsS3TableArn,
-        athenaOutputLocation: resolvedAthenaOutputLocation,
-        athenaWorkGroup: resolvedAthenaWorkGroup,
-        athenaCatalogName: resolvedAthenaCatalogName,
-      } = resolveDataWarehouseServiceOptionsFromCli({
-        awsS3TableArn,
-        athenaOutputLocation,
-        athenaWorkgroup,
-        athenaCatalogName,
-      });
+      const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
 
       if (clean && !resolvedAwsS3TableArn) {
         console.error('Invalid options: --clean requires --aws-s3-table-arn (managed Iceberg)');
@@ -144,7 +116,11 @@ export async function main(args: string[]): Promise<void> {
         );
         process.exit(1);
       }
-      const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames);
+      const warehouseSources = resolveWarehouseSourcesFromPostgresTableNames(tableNames).map((spec) => ({
+        ...spec,
+        icebergTable: spec.icebergTable.toLowerCase(),
+        tableKey: spec.tableKey.toLowerCase(),
+      }));
 
       await exportData({
         databaseUrl: resolvedDatabaseUrl,
@@ -156,9 +132,6 @@ export async function main(args: string[]): Promise<void> {
         namespace,
         warehouseSources,
         localPath,
-        athenaOutputLocation: resolvedAthenaOutputLocation,
-        athenaWorkGroup: resolvedAthenaWorkGroup,
-        athenaCatalogName: resolvedAthenaCatalogName,
         ...(clean ? { clean: true } : {}),
       });
       console.log('Export completed successfully');
@@ -182,16 +155,6 @@ export async function main(args: string[]): Promise<void> {
     .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
-    .option(
-      '--athena-workgroup <name>',
-      'Athena workgroup for metadata checks',
-      dataWarehouseCliEnvDefaults.athenaWorkGroup
-    )
-    .option(
-      '--athena-catalog-name <name>',
-      'Athena catalog name for metadata checks',
-      dataWarehouseCliEnvDefaults.athenaCatalogName
-    )
     .requiredOption(
       '-t, --table <names>',
       'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES). Verifies matching Iceberg tables already exist in S3 Tables.',
@@ -208,8 +171,6 @@ export async function main(args: string[]): Promise<void> {
         awsS3TableArn,
         s3Region,
         namespace,
-        athenaWorkgroup,
-        athenaCatalogName,
         table,
       } = options;
 
@@ -222,15 +183,7 @@ export async function main(args: string[]): Promise<void> {
           dbPassword,
           databaseStatementTimeout,
         });
-        const {
-          awsS3TableArn: resolvedAwsS3TableArn,
-          athenaWorkGroup: resolvedAthenaWorkGroup,
-          athenaCatalogName: resolvedAthenaCatalogName,
-        } = resolveDataWarehouseServiceOptionsFromCli({
-          awsS3TableArn,
-          athenaWorkgroup,
-          athenaCatalogName,
-        });
+        const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
         if (!resolvedAwsS3TableArn) {
           throw new Error('Missing required option: --aws-s3-table-arn');
         }
@@ -250,20 +203,13 @@ export async function main(args: string[]): Promise<void> {
           s3Region,
           namespace,
           warehouseSources,
-          athenaWorkGroup: resolvedAthenaWorkGroup,
-          athenaCatalogName: resolvedAthenaCatalogName,
         });
         const migrateElapsedSec = ((Date.now() - migrateStartedAt) / 1000).toFixed(1);
         const sourceSummary = `${tableCount} Postgres source table(s) from --table`;
-        const athenaBits = [
-          resolvedAthenaCatalogName && `Athena catalog ${resolvedAthenaCatalogName}`,
-          resolvedAthenaWorkGroup && `workgroup ${resolvedAthenaWorkGroup}`,
-        ].filter(Boolean);
         console.log(
           `Migrate completed in ${migrateElapsedSec}s: ${sourceSummary}; Postgres ${formatPostgresTargetLabel(
             resolvedDatabaseUrl
-          )}; Iceberg namespace ${JSON.stringify(icebergNamespace)}; S3 Tables ${resolvedAwsS3TableArn}; region ${s3Region}` +
-            (athenaBits.length > 0 ? `; ${athenaBits.join('; ')}` : '')
+          )}; Iceberg namespace ${JSON.stringify(icebergNamespace)}; S3 Tables ${resolvedAwsS3TableArn}; region ${s3Region}`
         );
       } catch (err) {
         console.error('Migrate failed:', err);
@@ -288,7 +234,7 @@ export async function main(args: string[]): Promise<void> {
       const { awsS3TableArn, s3Region, namespace, table } = options;
 
       try {
-        const { awsS3TableArn: resolvedAwsS3TableArn } = resolveDataWarehouseServiceOptionsFromCli({ awsS3TableArn });
+        const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
         if (!resolvedAwsS3TableArn) {
           throw new Error('Missing required option: --aws-s3-table-arn');
         }
@@ -340,7 +286,7 @@ export async function main(args: string[]): Promise<void> {
       const { awsS3TableArn, s3Region, namespace, prefix, json } = options;
 
       try {
-        const { awsS3TableArn: resolvedAwsS3TableArn } = resolveDataWarehouseServiceOptionsFromCli({ awsS3TableArn });
+        const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
         if (!resolvedAwsS3TableArn) {
           throw new Error('Missing required option: --aws-s3-table-arn');
         }
@@ -400,21 +346,6 @@ export async function main(args: string[]): Promise<void> {
     .requiredOption('-a, --aws-s3-table-arn <arn>', 'AWS S3 Table ARN', dataWarehouseCliEnvDefaults.awsS3TableArn)
     .option('-r, --s3-region <region>', 'S3 Region', dataWarehouseCliEnvDefaults.s3Region)
     .option('-n, --namespace <namespace>', 'Iceberg namespace', 'default')
-    .option(
-      '--athena-output-location <s3-uri>',
-      'Athena query result output location (optional if workgroup enforces output location)',
-      dataWarehouseCliEnvDefaults.athenaOutputLocation
-    )
-    .option(
-      '--athena-workgroup <name>',
-      'Athena workgroup for DDL operations',
-      dataWarehouseCliEnvDefaults.athenaWorkGroup
-    )
-    .option(
-      '--athena-catalog-name <name>',
-      'Athena catalog name for table metadata and DDL',
-      dataWarehouseCliEnvDefaults.athenaCatalogName
-    )
     .requiredOption(
       '-t, --table <names>',
       'Comma-separated Postgres table names exactly as stored (default: MEDPLUM_DATA_WAREHOUSE_TABLES).',
@@ -441,9 +372,6 @@ export async function main(args: string[]): Promise<void> {
         awsS3TableArn,
         s3Region,
         namespace,
-        athenaOutputLocation,
-        athenaWorkgroup,
-        athenaCatalogName,
         table,
         defaultRowThreshold,
         rowThresholdsJson,
@@ -459,17 +387,7 @@ export async function main(args: string[]): Promise<void> {
           dbPassword,
           databaseStatementTimeout,
         });
-        const {
-          awsS3TableArn: resolvedAwsS3TableArn,
-          athenaOutputLocation: resolvedAthenaOutputLocation,
-          athenaWorkGroup: resolvedAthenaWorkGroup,
-          athenaCatalogName: resolvedAthenaCatalogName,
-        } = resolveDataWarehouseServiceOptionsFromCli({
-          awsS3TableArn,
-          athenaOutputLocation,
-          athenaWorkgroup,
-          athenaCatalogName,
-        });
+        const resolvedAwsS3TableArn = resolveAwsS3TableArn(awsS3TableArn);
         if (!resolvedAwsS3TableArn) {
           throw new Error('Missing required option: --aws-s3-table-arn');
         }
@@ -493,9 +411,6 @@ export async function main(args: string[]): Promise<void> {
           },
           s3Region,
           awsS3TableArn: resolvedAwsS3TableArn,
-          athenaOutputLocation: resolvedAthenaOutputLocation,
-          athenaWorkGroup: resolvedAthenaWorkGroup,
-          athenaCatalogName: resolvedAthenaCatalogName,
           namespace,
           warehouseSources,
           defaultRowThreshold: parseDefaultRowThreshold(defaultRowThreshold),

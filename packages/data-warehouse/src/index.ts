@@ -10,11 +10,7 @@ export {
   mergePostgresStatementTimeout,
   parseDefaultRowThreshold,
   parseRowThresholdOverrides,
-  resolveAthenaCatalogName,
-  resolveAthenaOutputLocation,
-  resolveAthenaWorkGroup,
   resolveAwsS3TableArn,
-  resolveDataWarehouseServiceOptionsFromCli,
   resolveDatabaseUrl,
 } from './config.ts';
 export type { DatabaseConfigOptions } from './config.ts';

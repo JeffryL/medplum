@@ -330,9 +330,6 @@ export interface MedplumDataWarehouseSyncConfig {
    */
   defaultRowThreshold?: number | null;
   rowThresholdOverrides?: Record<string, number>;
-  athenaOutputLocation?: string;
-  athenaWorkGroup?: string;
-  athenaCatalogName?: string;
 }
 
 export interface MedplumFissionConfig {
