@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IcebergNullOrder, IcebergSortDirection } from '@aws-sdk/client-s3tables';
-import { describe, expect, it } from 'vitest';
-import { buildWarehouseIcebergWriteOrder } from './aws.ts';
+import { buildWarehouseIcebergWriteOrder } from './aws';
 
 describe('buildWarehouseIcebergWriteOrder', () => {
   it('orders project_id then last_updated ascending with nulls last', () => {

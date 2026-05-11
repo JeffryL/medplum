@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
-import { getSyncAction } from './sync.js';
+import { getSyncAction } from './sync';
 
 describe('getSyncAction', () => {
   it('skips when no rows are available', () => {

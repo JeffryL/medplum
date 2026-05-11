@@ -15,6 +15,18 @@ export function asSqlIdentifier(value: string): string {
   return value;
 }
 
+/**
+ * DuckDB `ATTACH` for a PostgreSQL server (postgres extension), using the same alias as export (`pg_db`).
+ *
+ * @param databaseUrl - Full Postgres connection URI (including any `options` for session GUCs such as `statement_timeout`).
+ * @param alias - Unquoted DuckDB catalog name (default `pg_db`).
+ * @returns SQL to run after `INSTALL postgres; LOAD postgres;`
+ */
+export function buildDuckdbPostgresAttachQuery(databaseUrl: string, alias = 'pg_db'): string {
+  const name = asSqlIdentifier(alias);
+  return `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS ${name} (TYPE postgres);`;
+}
+
 export function buildCreateTableIfNotExistsAsQuery(qualifiedTable: string, selectQuery: string): string {
   return `CREATE TABLE IF NOT EXISTS ${qualifiedTable} AS ${selectQuery};`;
 }

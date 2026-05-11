@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
-import { getWarehousePartitionSpec, parseCommaSeparatedTableNames } from './resource-types.ts';
+import { getWarehousePartitionSpec, parseCommaSeparatedTableNames } from './resource-types';
 
 describe('parseCommaSeparatedTableNames', () => {
   it('splits, trims, and drops empty segments', () => {

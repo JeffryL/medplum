@@ -176,7 +176,7 @@ export interface MedplumServerConfig {
 
   /**
    * Optional configuration for scheduled data warehouse sync jobs.
-   * Runs incremental `@medplum/data-warehouse` sync jobs on a fixed cron pattern.
+   * Runs incremental in-server data warehouse sync jobs on a fixed cron pattern.
    */
   dataWarehouseSync?: MedplumDataWarehouseSyncConfig;
 

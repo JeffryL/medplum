@@ -90,7 +90,10 @@ async function downloadFileWithS3Client(
 
   if (typeof response.Body === 'object' && 'transformToWebStream' in response.Body) {
     const webStream = await response.Body.transformToWebStream();
-    await pipeline(Readable.fromWeb(webStream), createWriteStream(destination));
+    await pipeline(
+      Readable.fromWeb(webStream as unknown as import('node:stream/web').ReadableStream),
+      createWriteStream(destination)
+    );
     return;
   }
 

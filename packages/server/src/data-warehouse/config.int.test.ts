@@ -3,10 +3,9 @@
 
 import { DuckDBInstance } from '@duckdb/node-api';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, mergePostgresStatementTimeout, resolveDatabaseUrl } from './config.js';
-import { buildDuckdbPostgresAttachQuery } from './postgres-duckdb.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
+import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, mergePostgresStatementTimeout, resolveDatabaseUrl } from './config';
+import { buildDuckdbPostgresAttachQuery } from './warehouse-sql';
+import { startPostgresTestContainer } from './postgres-testcontainer.util';
 
 /**
  * Exercises `mergePostgresStatementTimeout` and `resolveDatabaseUrl` against a real Postgres

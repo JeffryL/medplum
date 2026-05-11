@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
   DEFAULT_ROW_THRESHOLD,
@@ -11,7 +10,7 @@ import {
   parseDefaultRowThreshold,
   parseRowThresholdOverrides,
   resolveDatabaseUrl,
-} from './config.ts';
+} from './config';
 
 describe('config helpers', () => {
   it('formatPostgresTargetLabel omits credentials', () => {

@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Client } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { verifyWarehousePostgresTablesExist } from './migrate.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
+import { verifyWarehousePostgresTablesExist } from './migrate';
+import { startPostgresTestContainer } from './postgres-testcontainer.util';
 
 describe('migrate Postgres verification', () => {
   let pgContainer: { stop(): Promise<unknown> } | undefined;

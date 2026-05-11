@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { syncData } from '@medplum/data-warehouse';
+import { syncData } from '../data-warehouse';
 import type { Queue } from 'bullmq';
 import { Worker } from 'bullmq';
 import type { MedplumServerConfig } from '../config/types';
@@ -13,7 +13,7 @@ import {
   refreshDataWarehouseSyncScheduler,
 } from './data-warehouse-sync';
 
-jest.mock('@medplum/data-warehouse', () => ({
+jest.mock('../data-warehouse', () => ({
   mergePostgresStatementTimeout: jest.fn(
     (url: string, timeout: string) => `${url}?options=-c%20statement_timeout%3D${timeout}`
   ),

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { DataWarehouseAwsClient } from './aws.ts';
-import type { WarehouseSourceTable } from './export.ts';
-import { asSqlIdentifier, DEFAULT_NAMESPACE } from './warehouse-sql.ts';
+import { DataWarehouseAwsClient } from './aws';
+import type { WarehouseSourceTable } from './export';
+import { asSqlIdentifier, DEFAULT_NAMESPACE } from './warehouse-sql';
 
 export interface DeleteWarehouseTablesOptions {
   awsS3TableArn: string;

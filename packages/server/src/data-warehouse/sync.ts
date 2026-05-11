@@ -2,20 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
-import { DataWarehouseAwsClient } from './aws.ts';
-import { resolveDatabaseUrl } from './config.ts';
-import type { WarehouseSourceTable } from './export.ts';
+import { DataWarehouseAwsClient } from './aws';
+import { resolveDatabaseUrl } from './config';
+import type { WarehouseSourceTable } from './export';
 import {
   buildManagedIcebergSetupQueries,
   buildProjectedSelectFromHistoryTable,
   WAREHOUSE_HISTORY_COLUMN_NAMES,
-} from './export.ts';
+} from './export';
 import {
   asSqlIdentifier,
   buildInsertIntoSelectQuery,
   buildManagedIcebergQualifiedTable,
   DEFAULT_NAMESPACE,
-} from './warehouse-sql.ts';
+} from './warehouse-sql';
 
 export interface SyncOptions {
   /**

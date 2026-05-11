@@ -4,10 +4,9 @@ import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export.ts';
-import { startPostgresTestContainer } from './postgres-testcontainer.util.ts';
-import { buildAthenaCreateIcebergTableQuery } from './warehouse-sql.ts';
+import { exportData, resolveWarehouseSourcesFromPostgresTableNames } from './export';
+import { startPostgresTestContainer } from './postgres-testcontainer.util';
+import { buildAthenaCreateIcebergTableQuery } from './warehouse-sql';
 
 describe('Data Warehouse Export', () => {
   let pgContainer: any;

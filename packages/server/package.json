@@ -31,6 +31,7 @@
     "@aws-sdk/client-comprehendmedical": "3.1045.0",
     "@aws-sdk/client-lambda": "3.1045.0",
     "@aws-sdk/client-s3": "3.1045.0",
+    "@aws-sdk/client-s3tables": "3.1045.0",
     "@aws-sdk/client-secrets-manager": "3.1045.0",
     "@aws-sdk/client-sesv2": "3.1045.0",
     "@aws-sdk/client-ssm": "3.1045.0",
@@ -42,6 +43,7 @@
     "@azure/identity": "4.13.1",
     "@azure/keyvault-secrets": "4.11.2",
     "@azure/storage-blob": "12.31.0",
+    "@duckdb/node-api": "1.5.2-r.1",
     "@google-cloud/secret-manager": "6.1.2",
     "@google-cloud/storage": "7.19.0",
     "@kubernetes/client-node": "1.4.0",
@@ -101,6 +103,7 @@
   "devDependencies": {
     "@jest/test-sequencer": "30.4.1",
     "@medplum/fhirtypes": "5.1.11",
+    "@testcontainers/postgresql": "11.14.0",
     "@types/bcrypt": "6.0.0",
     "@types/body-parser": "1.19.6",
     "@types/bytes": "3.1.5",
@@ -125,7 +128,8 @@
     "openapi3-ts": "4.5.0",
     "set-cookie-parser": "3.1.0",
     "supertest": "7.2.2",
-    "superwstest": "3.0.0"
+    "superwstest": "3.0.0",
+    "testcontainers": "11.14.0"
   },
   "engines": {
     "node": "^22.18.0 || >=24.2.0"

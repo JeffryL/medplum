@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SyncOptions } from '@medplum/data-warehouse';
+import type { SyncOptions } from '../data-warehouse';
 import {
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
   resolveWarehouseSourcesFromPostgresTableNames,
   syncData,
-} from '@medplum/data-warehouse';
+} from '../data-warehouse';
 import type { Job, QueueBaseOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
 import type { MedplumDataWarehouseSyncConfig, MedplumServerConfig } from '../config/types';

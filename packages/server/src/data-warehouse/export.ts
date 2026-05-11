@@ -3,15 +3,15 @@
 
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
-import { DataWarehouseAwsClient } from './aws.ts';
-import { buildDuckdbPostgresAttachQuery } from './postgres-duckdb.ts';
+import { DataWarehouseAwsClient } from './aws';
 import {
   asSqlIdentifier,
+  buildDuckdbPostgresAttachQuery,
   buildInsertIntoSelectQuery,
   buildManagedIcebergQualifiedTable,
   DEFAULT_NAMESPACE,
   escapeSqlLiteral,
-} from './warehouse-sql.ts';
+} from './warehouse-sql';
 
 /**
  * One Postgres source and its managed Iceberg table name.

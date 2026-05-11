@@ -12,8 +12,8 @@ import {
   ListTablesCommand,
   S3TablesClient,
 } from '@aws-sdk/client-s3tables';
-import { getWarehousePartitionSpec } from './resource-types.ts';
-import { asSqlIdentifier } from './warehouse-sql.ts';
+import { getWarehousePartitionSpec } from './resource-types';
+import { asSqlIdentifier } from './warehouse-sql';
 
 export interface DataWarehouseAwsClientOptions {
   region: string;
