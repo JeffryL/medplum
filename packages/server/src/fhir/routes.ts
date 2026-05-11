@@ -51,7 +51,7 @@ import { dbExplainHandler } from './operations/explain';
 import { bulkExportHandler, patientExportHandler } from './operations/export';
 import { expungeHandler } from './operations/expunge';
 import { extractHandler } from './operations/extract';
-import { scheduleFindHandler } from './operations/find';
+import { appointmentFindHandler, scheduleFindHandler } from './operations/find';
 import { getWsBindingTokenHandler } from './operations/getwsbindingtoken';
 import { getWsSubProjectStatsHandler } from './operations/getwssubprojectstats';
 import { getWsSubStatsHandler } from './operations/getwssubstats';
@@ -62,6 +62,7 @@ import { patientEverythingHandler } from './operations/patienteverything';
 import { patientMatchHandler } from './operations/patientmatch';
 import { patientSummaryHandler } from './operations/patientsummary';
 import { planDefinitionApplyHandler } from './operations/plandefinitionapply';
+import { projectRateLimitsHandler } from './operations/project-rate-limits';
 import { projectCloneHandler } from './operations/projectclone';
 import { projectInitHandler } from './operations/projectinit';
 import { refreshReferenceDisplayHandler } from './operations/refresh-reference-display';
@@ -74,6 +75,7 @@ import { updateUserEmailOperation } from './operations/update-user-email';
 import { valueSetValidateOperation } from './operations/valuesetvalidatecode';
 import { sendOutcome } from './outcomes';
 import type { ResendSubscriptionsOptions } from './repo';
+import { validateRepositoryResourceStrictly } from './repository/validation';
 import { sendFhirResponse } from './response';
 import { smartConfigurationHandler, smartStylingHandler } from './smart';
 
@@ -226,6 +228,9 @@ function initInternalFhirRouter(): FhirRouter {
   // Project $clone
   router.add('POST', '/Project/:id/$clone', projectCloneHandler);
 
+  // Project $rate-limits
+  router.add('GET', '/Project/:id/$rate-limits', projectRateLimitsHandler);
+
   // Project $init
   router.add('POST', '/Project/$init', projectInitHandler);
 
@@ -376,7 +381,8 @@ function initInternalFhirRouter(): FhirRouter {
   // Schedule $find operation
   router.add('GET', '/Schedule/:id/$find', scheduleFindHandler);
 
-  // Appointment $book operation
+  // Appointment Scheduling operations
+  router.add('GET', '/Appointment/$find', appointmentFindHandler);
   router.add('POST', '/Appointment/$book', appointmentBookHandler);
 
   // PackageRelease $install operation
@@ -385,7 +391,7 @@ function initInternalFhirRouter(): FhirRouter {
   // Validate create resource
   router.add('POST', '/:resourceType/$validate', async (req: FhirRequest) => {
     const ctx = getAuthenticatedContext();
-    await ctx.repo.validateResourceStrictly(req.body);
+    await validateRepositoryResourceStrictly(ctx.repo, req.body);
     return [allOk];
   });
 
