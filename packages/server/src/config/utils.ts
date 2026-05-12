@@ -30,10 +30,10 @@ export function addDefaults(config: MedplumServerConfig): ServerConfig {
   config.botLambdaLayerName ||= 'medplum-bot-layer';
   config.bcryptHashSalt ||= 10;
   config.bullmq = { concurrency: 20, removeOnComplete: { count: 1 }, removeOnFail: { count: 1 }, ...config.bullmq };
-  config.dataWarehouseSync = {
+  config.dataWarehouse = {
     enabled: false,
     sink: 's3tables',
-    ...config.dataWarehouseSync,
+    ...config.dataWarehouse,
   };
   config.shutdownTimeoutMilliseconds ??= 30_000;
   config.accurateCountThreshold ??= 1_000_000;
@@ -98,7 +98,7 @@ type DefaultConfigKeys =
   | 'botLambdaLayerName'
   | 'bcryptHashSalt'
   | 'bullmq'
-  | 'dataWarehouseSync'
+  | 'dataWarehouse'
   | 'shutdownTimeoutMilliseconds'
   | 'accurateCountThreshold'
   | 'maxSearchOffset'
@@ -152,7 +152,6 @@ const integerKeys = new Set([
   'smtp.port',
 
   'bullmq.concurrency',
-  'dataWarehouseSync.defaultRowThreshold',
 
   'fission.routerPort',
 ]);
@@ -183,7 +182,7 @@ const booleanKeys = new Set([
   'rejectUnauthorized',
   'fhirSearchDiscourageSeqScan',
   'redactAuditEvents',
-  'dataWarehouseSync.enabled',
+  'dataWarehouse.enabled',
 ]);
 
 export function isBooleanConfig(key: string): boolean {
@@ -202,9 +201,8 @@ const objectKeys = new Set([
   'workers',
   'workers.enabled',
   'workers.bullmq',
-  'dataWarehouseSync',
-  'dataWarehouseSync.warehouseTables',
-  'dataWarehouseSync.rowThresholdOverrides',
+  'dataWarehouse',
+  'dataWarehouse.rowThresholdOverrides',
 ]);
 
 export function isObjectConfig(key: string): boolean {

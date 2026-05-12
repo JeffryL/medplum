@@ -18,6 +18,7 @@ jest.mock('../data-warehouse/config', () => {
   const actual: typeof DataWarehouseConfigModule = jest.requireActual('../data-warehouse/config');
   return {
     ...actual,
+    getWarehouseSyncPostgresTableNames: jest.fn(() => ['Patient_history', 'Observation_history']),
     resolveWarehouseSourcesFromPostgresTableNames: jest.fn((tableNames: string[]) =>
       tableNames.map((tableName) => ({
         postgresTable: tableName,
@@ -81,14 +82,12 @@ function buildConfig(overrides?: Partial<MedplumServerConfig>): MedplumServerCon
       removeOnComplete: { count: 1 },
       removeOnFail: { count: 1 },
     },
-    dataWarehouseSync: {
+    dataWarehouse: {
       enabled: true,
       cron: '0 * * * *',
       sink: 's3tables',
       s3Region: 'us-east-1',
       awsS3TableArn: 'arn:aws:s3tables:us-east-1:123456789012:bucket/test',
-      warehouseTables: ['Patient_history', 'Observation_history'],
-      defaultRowThreshold: null,
     },
     ...overrides,
   } as MedplumServerConfig;
@@ -112,18 +111,16 @@ describe('data-warehouse sync worker', () => {
     });
     expect(result.databaseStatementTimeout).toStrictEqual('45s');
     expect(result.sink.type).toStrictEqual('s3tables');
-    expect(result.defaultRowThreshold).toBeUndefined();
     expect(result.warehouseSources).toHaveLength(2);
   });
 
   test('getDataWarehouseSyncOptions creates local sink', () => {
     const config = buildConfig({
-      dataWarehouseSync: {
+      dataWarehouse: {
         enabled: true,
         cron: '0 * * * *',
         sink: 'local',
         localBasePath: '/tmp/warehouse-out',
-        warehouseTables: ['Patient_history'],
       },
     });
     const result = getDataWarehouseSyncOptions(config);
@@ -171,12 +168,12 @@ describe('data-warehouse sync worker', () => {
 
   test('getDataWarehouseSyncOptions validates enabled config', () => {
     const config = buildConfig({
-      dataWarehouseSync: {
+      dataWarehouse: {
         enabled: false,
       },
     });
 
-    expect(() => getDataWarehouseSyncOptions(config)).toThrow('dataWarehouseSync.enabled must be true');
+    expect(() => getDataWarehouseSyncOptions(config)).toThrow('dataWarehouse.enabled must be true');
   });
 
   test('refreshDataWarehouseSyncScheduler upserts scheduler when enabled', async () => {
@@ -203,7 +200,7 @@ describe('data-warehouse sync worker', () => {
 
     await refreshDataWarehouseSyncScheduler(
       buildConfig({
-        dataWarehouseSync: { enabled: false },
+        dataWarehouse: { enabled: false },
       }),
       queue
     );
@@ -237,7 +234,6 @@ describe('data-warehouse sync worker', () => {
       },
       databaseStatementTimeout: '45s',
       sink: { type: 's3tables' },
-      defaultRowThreshold: undefined,
     });
     expect(typeof mockedSyncData.mock.calls[0][0]?.onProgress).toStrictEqual('function');
   });

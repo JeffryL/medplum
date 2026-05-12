@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { getResourceTypes } from '@medplum/core';
 import type { MedplumDatabaseConfig, MedplumDatabaseSslConfig } from '../config/types';
 
 /** Default Postgres `statement_timeout` applied to DuckDB-attached connections (PostgreSQL duration syntax). */
@@ -136,6 +137,15 @@ export interface WarehouseSourceTable {
   readonly icebergTable: string;
   /** Keys row-threshold overrides and sync log lines (same as `icebergTable`). */
   readonly tableKey: string;
+}
+
+/**
+ * Postgres history table names for all indexed repository resource types (`{ResourceType}_History`),
+ * matching migrations (`resourceType + '_History'`).
+ * Used by the scheduled data warehouse sync worker.
+ */
+export function getWarehouseSyncPostgresTableNames(): string[] {
+  return getResourceTypes().map((resourceType) => `${resourceType}_History`);
 }
 
 /**

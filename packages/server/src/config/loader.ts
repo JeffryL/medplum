@@ -218,10 +218,10 @@ function loadEnvConfig(): MedplumServerConfig {
       key = key.substring('WORKERS_'.length);
       currConfig = config.workers ??= {};
       section = 'workers';
-    } else if (key.startsWith('DATA_WAREHOUSE_SYNC_')) {
-      key = key.substring('DATA_WAREHOUSE_SYNC_'.length);
-      currConfig = config.dataWarehouseSync ??= {};
-      section = 'dataWarehouseSync';
+    } else if (key.startsWith('DATA_WAREHOUSE_')) {
+      key = key.substring('DATA_WAREHOUSE_'.length);
+      currConfig = config.dataWarehouse ??= {};
+      section = 'dataWarehouse';
     }
 
     // Convert key from CAPITAL_CASE to camelCase

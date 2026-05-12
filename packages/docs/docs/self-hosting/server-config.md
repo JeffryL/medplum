@@ -347,85 +347,72 @@ See [BullMQ Job Removal](https://docs.bullmq.io/guide/jobs/auto-removal).
 
 **Default:** `false`
 
-### dataWarehouseSync
+### dataWarehouse
 
 Optional configuration for the scheduled Data Warehouse sync worker. This worker runs incremental sync jobs via BullMQ on a fixed cron schedule.
 It uses `readonlyDatabase` connection settings when available; otherwise it falls back to `database`.
+History tables synced are every `{ResourceType}_History` name derived from indexed repository resource types (the same pattern as database migrations), not a separate configurable list.
 
-#### dataWarehouseSync.enabled
+#### dataWarehouse.enabled
 
 Enable or disable the scheduled Data Warehouse sync worker.
 
 **Default:** `false`
 
-#### dataWarehouseSync.cron
+#### dataWarehouse.cron
 
 Cron expression used for scheduling sync runs.
 
 **Default:** None
 
-#### dataWarehouseSync.databaseStatementTimeout
+#### dataWarehouse.databaseStatementTimeout
 
 Optional Postgres `statement_timeout` value (e.g. `15min`, `900s`) applied when deriving the sync Postgres URL from server `database` settings.
 
 **Default:** Uses `database.queryTimeout` when set, otherwise `15min`
 
-#### dataWarehouseSync.sink
+#### dataWarehouse.sink
 
 Warehouse export sink type.
 
 - `s3tables`: Managed Iceberg tables in Amazon S3 Tables (existing behavior).
-- `local`: Write per-table Parquet files to `dataWarehouseSync.localBasePath`.
+- `local`: Write per-table Parquet files to `dataWarehouse.localBasePath`.
 
 **Default:** `s3tables`
 
-#### dataWarehouseSync.s3Region
+#### dataWarehouse.s3Region
 
 AWS region for S3 Tables operations.
 
-Required when `dataWarehouseSync.sink` is `s3tables`.
+Required when `dataWarehouse.sink` is `s3tables`.
 
 **Default:** None
 
-#### dataWarehouseSync.awsS3TableArn
+#### dataWarehouse.awsS3TableArn
 
 AWS S3 Table ARN for managed Iceberg table access.
 
-Required when `dataWarehouseSync.sink` is `s3tables`.
+Required when `dataWarehouse.sink` is `s3tables`.
 
 **Default:** None
 
-#### dataWarehouseSync.localBasePath
+#### dataWarehouse.localBasePath
 
-Base output directory for local Parquet exports. Each configured warehouse table is written as `<table_key>.parquet` under this directory.
+Base output directory for local Parquet exports. Each repository history table is written as `<table_key>.parquet` under this directory.
 
-Required when `dataWarehouseSync.sink` is `local`.
+Required when `dataWarehouse.sink` is `local`.
 
 **Default:** None
 
-#### dataWarehouseSync.namespace
+#### dataWarehouse.namespace
 
 Optional Iceberg namespace used by sync.
 
 **Default:** `default`
 
-#### dataWarehouseSync.warehouseTables
+#### dataWarehouse.rowThresholdOverrides
 
-Array of Postgres history table names to sync (for example `["Patient_history", "Observation_history"]`).
-
-**Default:** None
-
-#### dataWarehouseSync.defaultRowThreshold
-
-Minimum row count required before syncing a table.
-
-Set to `null` / unset to disable the default threshold (sync inserts whenever at least one row exists).
-
-**Default:** None
-
-#### dataWarehouseSync.rowThresholdOverrides
-
-Optional per-table row-threshold overrides object (keys use derived table identifiers, for example `patient_history`).
+Optional per-table row-threshold overrides object (keys use derived table identifiers, for example `patient_history`). A special `default` key sets the threshold for any table without a more specific entry. When no override applies to a table, sync inserts whenever at least one qualifying row exists (effective threshold 1).
 
 **Default:** None
 

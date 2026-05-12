@@ -178,7 +178,7 @@ export interface MedplumServerConfig {
    * Optional configuration for scheduled data warehouse sync jobs.
    * Runs incremental in-server data warehouse sync jobs on a fixed cron pattern.
    */
-  dataWarehouseSync?: MedplumDataWarehouseSyncConfig;
+  dataWarehouse?: MedplumDataWarehouseConfig;
 
   /**
    * Optional mTLS certificate header for incoming requests.
@@ -314,7 +314,7 @@ export interface MedplumWorkersConfig {
   bullmq?: Partial<Record<WorkerName, Partial<MedplumBullmqConfig>>>;
 }
 
-export interface MedplumDataWarehouseSyncConfig {
+export interface MedplumDataWarehouseConfig {
   /**
    * Enables/disables the scheduled sync worker. Defaults to false.
    */
@@ -335,12 +335,6 @@ export interface MedplumDataWarehouseSyncConfig {
   /** Required when sink is `local`. */
   localBasePath?: string;
   namespace?: string;
-  warehouseTables?: string[];
-  /**
-   * Optional default row threshold. If null/undefined, there is no default threshold
-   * and sync will insert whenever at least one row is available.
-   */
-  defaultRowThreshold?: number | null;
   rowThresholdOverrides?: Record<string, number>;
 }
 

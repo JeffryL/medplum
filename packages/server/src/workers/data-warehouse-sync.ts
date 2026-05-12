@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
-import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, resolveWarehouseSourcesFromPostgresTableNames } from '../data-warehouse/config';
+import {
+  DEFAULT_DATABASE_STATEMENT_TIMEOUT,
+  getWarehouseSyncPostgresTableNames,
+  resolveWarehouseSourcesFromPostgresTableNames,
+} from '../data-warehouse/config';
 import { LocalParquetWarehouseSink, S3TablesWarehouseSink } from '../data-warehouse/sink';
 import type { SyncOptions } from '../data-warehouse/sync';
 import { syncData } from '../data-warehouse/sync';
@@ -68,7 +72,7 @@ export async function refreshDataWarehouseSyncScheduler(
   config: MedplumServerConfig,
   queue: Queue<DataWarehouseSyncJobData>
 ): Promise<void> {
-  const syncConfig = config.dataWarehouseSync;
+  const syncConfig = config.dataWarehouse;
   if (!syncConfig?.enabled) {
     try {
       await queue.removeJobScheduler(DataWarehouseSyncSchedulerId);
@@ -79,7 +83,7 @@ export async function refreshDataWarehouseSyncScheduler(
   }
 
   if (!syncConfig.cron) {
-    throw new Error('dataWarehouseSync.cron is required when dataWarehouseSync.enabled is true');
+    throw new Error('dataWarehouse.cron is required when dataWarehouse.enabled is true');
   }
 
   await queue.upsertJobScheduler(
@@ -112,19 +116,12 @@ export async function processDataWarehouseSyncJob(
 }
 
 export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOptions {
-  const syncConfig = config.dataWarehouseSync;
+  const syncConfig = config.dataWarehouse;
   if (!syncConfig?.enabled) {
-    throw new Error('dataWarehouseSync.enabled must be true to run scheduled sync');
+    throw new Error('dataWarehouse.enabled must be true to run scheduled sync');
   }
 
-  const { s3Region, awsS3TableArn, localBasePath, warehouseTables, defaultRowThreshold, rowThresholdOverrides, namespace } =
-    syncConfig;
-  if (!warehouseTables || warehouseTables.length === 0) {
-    throw new Error('dataWarehouseSync.warehouseTables must contain at least one table');
-  }
-  if (defaultRowThreshold !== undefined && defaultRowThreshold !== null && defaultRowThreshold <= 0) {
-    throw new Error('dataWarehouseSync.defaultRowThreshold must be a positive integer');
-  }
+  const { s3Region, awsS3TableArn, localBasePath, rowThresholdOverrides, namespace } = syncConfig;
 
   const dbConfig = config.readonlyDatabase ?? config.database;
   const proxyEndpoint = config.readonlyDatabase
@@ -144,16 +141,16 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     sinkType === 'local'
       ? (() => {
           if (!localBasePath) {
-            throw new Error('dataWarehouseSync.localBasePath is required when dataWarehouseSync.sink is "local"');
+            throw new Error('dataWarehouse.localBasePath is required when dataWarehouse.sink is "local"');
           }
           return new LocalParquetWarehouseSink(localBasePath);
         })()
       : (() => {
           if (!s3Region) {
-            throw new Error('dataWarehouseSync.s3Region is required when dataWarehouseSync.sink is "s3tables"');
+            throw new Error('dataWarehouse.s3Region is required when dataWarehouse.sink is "s3tables"');
           }
           if (!awsS3TableArn) {
-            throw new Error('dataWarehouseSync.awsS3TableArn is required when dataWarehouseSync.sink is "s3tables"');
+            throw new Error('dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"');
           }
           return new S3TablesWarehouseSink(s3Region, awsS3TableArn);
         })();
@@ -163,8 +160,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     databaseStatementTimeout,
     sink,
     namespace,
-    warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(warehouseTables),
-    defaultRowThreshold: defaultRowThreshold ?? undefined,
+    warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(getWarehouseSyncPostgresTableNames()),
     rowThresholdOverrides,
   };
 }

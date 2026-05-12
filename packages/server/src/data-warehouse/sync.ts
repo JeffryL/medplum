@@ -16,13 +16,12 @@ export interface SyncOptions {
   database: MedplumDatabaseConfig;
   /**
    * Postgres `statement_timeout` for the DuckDB source URL (PostgreSQL duration syntax, e.g. `15min`, `45s`).
-   * When invoked from the server worker, use `dataWarehouseSync.databaseStatementTimeout` when set, otherwise derive from `MedplumServerConfig.database.queryTimeout` or the data-warehouse default.
+   * When invoked from the server worker, use `dataWarehouse.databaseStatementTimeout` when set, otherwise derive from `MedplumServerConfig.database.queryTimeout` or the data-warehouse default.
    */
   databaseStatementTimeout: string;
   warehouseSources: WarehouseSourceTable[];
   sink: DataWarehouseSyncSink;
   namespace?: string;
-  defaultRowThreshold?: number;
   rowThresholdOverrides?: Record<string, number>;
   onProgress?: (message: string, metadata?: Record<string, string | number>) => void;
 }
@@ -53,12 +52,8 @@ export function getSyncAction(count: number, threshold: number): SyncAction {
   return 'insert';
 }
 
-function getThresholdForTable(
-  defaultThreshold: number | undefined,
-  overrides: Record<string, number>,
-  tableKey: string
-): number {
-  const thresholdCandidate = overrides[tableKey] ?? overrides.default ?? defaultThreshold;
+function getThresholdForTable(overrides: Record<string, number>, tableKey: string): number {
+  const thresholdCandidate = overrides[tableKey] ?? overrides.default;
   if (thresholdCandidate !== undefined && Number.isFinite(thresholdCandidate) && thresholdCandidate > 0) {
     return Math.floor(thresholdCandidate);
   }
@@ -94,7 +89,7 @@ async function runWarehouseTableSync(
 
   for (const spec of options.warehouseSources) {
     const { postgresTable, tableKey } = spec;
-    const threshold = getThresholdForTable(options.defaultRowThreshold, overrides, tableKey);
+    const threshold = getThresholdForTable(overrides, tableKey);
     const sourcePredicate = options.sink.buildSourcePredicate(spec, namespace);
     const resultTableName = options.sink.getResultTableName(spec);
     await options.sink.ensureTargetExists(spec, namespace);
