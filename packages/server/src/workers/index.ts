@@ -9,6 +9,7 @@ import { initCronWorker } from './cron';
 import { initDataWarehouseSyncWorker } from './data-warehouse-sync';
 import { addDispatchJobs, initDispatchWorker } from './dispatch';
 import { initDownloadWorker } from './download';
+import { initLambdaCleanerWorker } from './lambda-cleaner';
 import { initPostDeployMigrationWorker } from './post-deploy-migration';
 import { initReindexWorker } from './reindex';
 import { initSetAccountsWorker } from './set-accounts';
@@ -25,6 +26,7 @@ const workerDefs: { name: WorkerName; init: WorkerInitializer }[] = [
   { name: 'batch', init: initBatchWorker },
   { name: 'post-deploy-migration', init: initPostDeployMigrationWorker },
   { name: 'set-accounts', init: initSetAccountsWorker },
+  { name: 'lambda-cleaner', init: initLambdaCleanerWorker },
   { name: 'data-warehouse-sync', init: initDataWarehouseSyncWorker },
 ];
 

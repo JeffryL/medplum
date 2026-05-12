@@ -296,6 +296,7 @@ export type WorkerName =
   | 'batch'
   | 'post-deploy-migration'
   | 'set-accounts'
+  | 'lambda-cleaner'
   | 'data-warehouse-sync';
 
 export interface MedplumWorkersConfig {
