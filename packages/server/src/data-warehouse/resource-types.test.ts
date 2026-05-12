@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { getWarehousePartitionSpec, parseCommaSeparatedTableNames } from './resource-types';
+import { parseCommaSeparatedTableNames, WAREHOUSE_ICEBERG_PARTITION_FIELDS } from './resource-types';
 
 describe('parseCommaSeparatedTableNames', () => {
   it('splits, trims, and drops empty segments', () => {
@@ -16,16 +16,12 @@ describe('parseCommaSeparatedTableNames', () => {
 });
 
 describe('warehouse partition strategy', () => {
-  const monthSpecFields = [
+  const daySpecFields = [
     { sourceColumn: 'project_id' as const, transform: 'identity' as const, name: 'project_id' },
-    { sourceColumn: 'last_updated' as const, transform: 'month' as const, name: 'last_updated_month' },
+    { sourceColumn: 'last_updated' as const, transform: 'day' as const, name: 'last_updated_day' },
   ];
 
-  it('defaults to project + monthly last_updated for any Iceberg table name', () => {
-    for (const name of ['patient', 'audit_event_history', 'encounter_history', 'EncounteR_History']) {
-      const partitionSpec = getWarehousePartitionSpec({ icebergTableName: name });
-      expect(partitionSpec.key).toBe('project-and-last-updated-month');
-      expect(partitionSpec.fields).toEqual(monthSpecFields);
-    }
+  it('always partitions by project + daily last_updated', () => {
+    expect(WAREHOUSE_ICEBERG_PARTITION_FIELDS).toEqual(daySpecFields);
   });
 });
