@@ -24,7 +24,7 @@ export function asSqlIdentifier(value: string): string {
  */
 export function buildDuckdbPostgresAttachQuery(databaseUrl: string, alias = 'pg_db'): string {
   const name = asSqlIdentifier(alias);
-  return `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS ${name} (TYPE postgres);`;
+  return `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS ${name} (TYPE postgres, READ_ONLY);`;
 }
 
 export function buildCreateTableIfNotExistsAsQuery(qualifiedTable: string, selectQuery: string): string {
