@@ -58,6 +58,44 @@ export function buildProjectedSelectFromHistoryTable(sourceHistoryTable: string,
   return `SELECT id, "versionId" AS version_id, content, "lastUpdated" AS last_updated, json_extract_string(content, '${PROJECT_ID_JSON_PATH}') AS project_id FROM pg_db."${sourceHistoryTable}" WHERE content IS NOT NULL AND content != '' AND (${whereClause}) ORDER BY "lastUpdated"`;
 }
 
+/**
+ * `INSTALL` / `LOAD` lines for the managed Iceberg / S3 Tables DuckDB stack (extensions used by {@link buildManagedIcebergSetupQueries}).
+ *
+ * @returns SQL statements in execution order.
+ */
+export function buildManagedIcebergExtensionQueries(): string[] {
+  return [
+    `INSTALL aws;`,
+    `LOAD aws;`,
+    `INSTALL postgres;`,
+    `LOAD postgres;`,
+    `INSTALL httpfs;`,
+    `LOAD httpfs;`,
+    `INSTALL iceberg;`,
+    `LOAD iceberg;`,
+  ];
+}
+
+/**
+ * DuckDB default secret for S3-backed Iceberg (managed S3 Tables path).
+ *
+ * @param s3Region - AWS region passed to the secret.
+ * @returns Single `CREATE SECRET` statement.
+ */
+export function buildManagedS3CredentialSecretQuery(s3Region: string): string {
+  return `CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(s3Region)}' );`;
+}
+
+/**
+ * DuckDB `ATTACH` for AWS S3 Tables as the `s3_tables_db` Iceberg catalog.
+ *
+ * @param awsS3TableArn - S3 Tables bucket ARN.
+ * @returns Single `ATTACH` statement.
+ */
+export function buildManagedS3TablesIcebergAttachQuery(awsS3TableArn: string): string {
+  return `ATTACH '${escapeSqlLiteral(awsS3TableArn)}' AS s3_tables_db ( TYPE iceberg, ENDPOINT_TYPE s3_tables );`;
+}
+
 /** Options required to build managed Iceberg attach/setup SQL (extensions, secrets, attach). */
 export interface ManagedIcebergAttachOptions {
   databaseUrl: string;
@@ -74,26 +112,14 @@ export interface ManagedIcebergAttachOptions {
  * @returns SQL strings to run in order before per-table mutations.
  */
 export function buildManagedIcebergSetupQueries(options: ManagedIcebergAttachOptions): string[] {
-  const queries: string[] = [];
-  queries.push(`INSTALL aws;`);
-  queries.push(`LOAD aws;`);
-  queries.push(`INSTALL postgres;`);
-  queries.push(`LOAD postgres;`);
-  queries.push(`INSTALL httpfs;`);
-  queries.push(`LOAD httpfs;`);
-  queries.push(`INSTALL iceberg;`);
-  queries.push(`LOAD iceberg;`);
+  const queries: string[] = [...buildManagedIcebergExtensionQueries()];
 
   if (!options.localPath) {
-    queries.push(
-      `CREATE SECRET ( TYPE S3, PROVIDER CREDENTIAL_CHAIN, REGION '${escapeSqlLiteral(options.s3Region)}' );`
-    );
+    queries.push(buildManagedS3CredentialSecretQuery(options.s3Region));
   }
 
   queries.push(buildDuckdbPostgresAttachQuery(options.databaseUrl));
-
-  const escapedS3TableArn = escapeSqlLiteral(options.awsS3TableArn);
-  queries.push(`ATTACH '${escapedS3TableArn}' AS s3_tables_db ( TYPE iceberg, ENDPOINT_TYPE s3_tables );`);
+  queries.push(buildManagedS3TablesIcebergAttachQuery(options.awsS3TableArn));
 
   return queries;
 }

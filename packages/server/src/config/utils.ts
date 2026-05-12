@@ -32,6 +32,7 @@ export function addDefaults(config: MedplumServerConfig): ServerConfig {
   config.bullmq = { concurrency: 20, removeOnComplete: { count: 1 }, removeOnFail: { count: 1 }, ...config.bullmq };
   config.dataWarehouseSync = {
     enabled: false,
+    sink: 's3tables',
     ...config.dataWarehouseSync,
   };
   config.shutdownTimeoutMilliseconds ??= 30_000;

@@ -3,6 +3,7 @@
 
 import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
 import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, resolveWarehouseSourcesFromPostgresTableNames } from '../data-warehouse/config';
+import { LocalParquetWarehouseSink, S3TablesWarehouseSink } from '../data-warehouse/sink';
 import type { SyncOptions } from '../data-warehouse/sync';
 import { syncData } from '../data-warehouse/sync';
 import type { Job, QueueBaseOptions } from 'bullmq';
@@ -116,14 +117,8 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     throw new Error('dataWarehouseSync.enabled must be true to run scheduled sync');
   }
 
-  const { s3Region, awsS3TableArn, warehouseTables, defaultRowThreshold, rowThresholdOverrides, namespace } = syncConfig;
-
-  if (!s3Region) {
-    throw new Error('dataWarehouseSync.s3Region is required');
-  }
-  if (!awsS3TableArn) {
-    throw new Error('dataWarehouseSync.awsS3TableArn is required');
-  }
+  const { s3Region, awsS3TableArn, localBasePath, warehouseTables, defaultRowThreshold, rowThresholdOverrides, namespace } =
+    syncConfig;
   if (!warehouseTables || warehouseTables.length === 0) {
     throw new Error('dataWarehouseSync.warehouseTables must contain at least one table');
   }
@@ -144,12 +139,29 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
 
   const databaseStatementTimeout =
     syncConfig.databaseStatementTimeout ?? getDatabaseStatementTimeoutFromServerConfig(config);
+  const sinkType = syncConfig.sink ?? 's3tables';
+  const sink =
+    sinkType === 'local'
+      ? (() => {
+          if (!localBasePath) {
+            throw new Error('dataWarehouseSync.localBasePath is required when dataWarehouseSync.sink is "local"');
+          }
+          return new LocalParquetWarehouseSink(localBasePath);
+        })()
+      : (() => {
+          if (!s3Region) {
+            throw new Error('dataWarehouseSync.s3Region is required when dataWarehouseSync.sink is "s3tables"');
+          }
+          if (!awsS3TableArn) {
+            throw new Error('dataWarehouseSync.awsS3TableArn is required when dataWarehouseSync.sink is "s3tables"');
+          }
+          return new S3TablesWarehouseSink(s3Region, awsS3TableArn);
+        })();
 
   return {
     database: resolvedDb,
     databaseStatementTimeout,
-    s3Region,
-    awsS3TableArn,
+    sink,
     namespace,
     warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(warehouseTables),
     defaultRowThreshold: defaultRowThreshold ?? undefined,

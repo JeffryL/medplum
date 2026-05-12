@@ -327,8 +327,12 @@ export interface MedplumDataWarehouseSyncConfig {
    * Uses PostgreSQL duration syntax, e.g. "15min" or "900s".
    */
   databaseStatementTimeout?: string;
+  /** Warehouse destination sink type. */
+  sink?: 's3tables' | 'local';
   s3Region?: string;
   awsS3TableArn?: string;
+  /** Required when sink is `local`. */
+  localBasePath?: string;
   namespace?: string;
   warehouseTables?: string[];
   /**

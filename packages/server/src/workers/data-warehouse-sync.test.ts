@@ -3,6 +3,7 @@
 import type { Queue } from 'bullmq';
 import { Worker } from 'bullmq';
 import type { MedplumServerConfig } from '../config/types';
+import type * as DataWarehouseConfigModule from '../data-warehouse/config';
 import { syncData } from '../data-warehouse/sync';
 import {
   DataWarehouseSyncQueueName,
@@ -14,7 +15,7 @@ import {
 } from './data-warehouse-sync';
 
 jest.mock('../data-warehouse/config', () => {
-  const actual = jest.requireActual<typeof import('../data-warehouse/config')>('../data-warehouse/config');
+  const actual: typeof DataWarehouseConfigModule = jest.requireActual('../data-warehouse/config');
   return {
     ...actual,
     resolveWarehouseSourcesFromPostgresTableNames: jest.fn((tableNames: string[]) =>
@@ -83,6 +84,7 @@ function buildConfig(overrides?: Partial<MedplumServerConfig>): MedplumServerCon
     dataWarehouseSync: {
       enabled: true,
       cron: '0 * * * *',
+      sink: 's3tables',
       s3Region: 'us-east-1',
       awsS3TableArn: 'arn:aws:s3tables:us-east-1:123456789012:bucket/test',
       warehouseTables: ['Patient_history', 'Observation_history'],
@@ -109,9 +111,23 @@ describe('data-warehouse sync worker', () => {
       password: 'readonly-secret',
     });
     expect(result.databaseStatementTimeout).toStrictEqual('45s');
-    expect(result.s3Region).toStrictEqual('us-east-1');
+    expect(result.sink.type).toStrictEqual('s3tables');
     expect(result.defaultRowThreshold).toBeUndefined();
     expect(result.warehouseSources).toHaveLength(2);
+  });
+
+  test('getDataWarehouseSyncOptions creates local sink', () => {
+    const config = buildConfig({
+      dataWarehouseSync: {
+        enabled: true,
+        cron: '0 * * * *',
+        sink: 'local',
+        localBasePath: '/tmp/warehouse-out',
+        warehouseTables: ['Patient_history'],
+      },
+    });
+    const result = getDataWarehouseSyncOptions(config);
+    expect(result.sink.type).toStrictEqual('local');
   });
 
   test('getDataWarehouseSyncOptions applies readonlyDatabaseProxyEndpoint like initPool', () => {
@@ -220,8 +236,7 @@ describe('data-warehouse sync worker', () => {
         password: 'readonly-secret',
       },
       databaseStatementTimeout: '45s',
-      s3Region: 'us-east-1',
-      awsS3TableArn: 'arn:aws:s3tables:us-east-1:123456789012:bucket/test',
+      sink: { type: 's3tables' },
       defaultRowThreshold: undefined,
     });
     expect(typeof mockedSyncData.mock.calls[0][0]?.onProgress).toStrictEqual('function');

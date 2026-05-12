@@ -354,6 +354,7 @@ describe('Config', () => {
     setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_WAREHOUSE_TABLES', '["Patient_history"]');
     setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_DEFAULT_ROW_THRESHOLD', '2000');
     setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_ROW_THRESHOLD_OVERRIDES', '{"default":1000,"patient_history":5000}');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_SINK', 's3tables');
 
     const config = await loadConfig('env');
     expect(config.dataWarehouseSync).toBeDefined();
@@ -366,6 +367,21 @@ describe('Config', () => {
     expect(config.dataWarehouseSync?.warehouseTables).toStrictEqual(['Patient_history']);
     expect(config.dataWarehouseSync?.defaultRowThreshold).toStrictEqual(2000);
     expect(config.dataWarehouseSync?.rowThresholdOverrides).toStrictEqual({ default: 1000, patient_history: 5000 });
+    expect(config.dataWarehouseSync?.sink).toStrictEqual('s3tables');
+  });
+
+  test('Env config dataWarehouseSync local sink fields', async () => {
+    setEnv('MEDPLUM_BASE_URL', 'http://localhost:3000');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_ENABLED', 'true');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_CRON', '0 * * * *');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_SINK', 'local');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_LOCAL_BASE_PATH', '/tmp/warehouse');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SYNC_WAREHOUSE_TABLES', '["Patient_history"]');
+
+    const config = await loadConfig('env');
+    expect(config.dataWarehouseSync).toBeDefined();
+    expect(config.dataWarehouseSync?.sink).toStrictEqual('local');
+    expect(config.dataWarehouseSync?.localBasePath).toStrictEqual('/tmp/warehouse');
   });
 
   test('Multi-source: file then env overlay', async () => {

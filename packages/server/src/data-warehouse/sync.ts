@@ -3,17 +3,12 @@
 
 import { DuckDBInstance } from '@duckdb/node-api';
 import type { MedplumDatabaseConfig } from '../config/types';
-import { DataWarehouseAwsClient } from './aws';
 import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
 import type { WarehouseSourceTable } from './config';
+import type { DataWarehouseSyncSink, DuckdbConnectionForSink } from './sink';
 import {
   asSqlIdentifier,
-  buildInsertIntoSelectQuery,
-  buildManagedIcebergQualifiedTable,
-  buildManagedIcebergSetupQueries,
-  buildProjectedSelectFromHistoryTable,
   DEFAULT_NAMESPACE,
-  WAREHOUSE_HISTORY_COLUMN_NAMES,
 } from './warehouse-sql';
 
 export interface SyncOptions {
@@ -24,9 +19,8 @@ export interface SyncOptions {
    * When invoked from the server worker, use `dataWarehouseSync.databaseStatementTimeout` when set, otherwise derive from `MedplumServerConfig.database.queryTimeout` or the data-warehouse default.
    */
   databaseStatementTimeout: string;
-  s3Region: string;
-  awsS3TableArn: string;
   warehouseSources: WarehouseSourceTable[];
+  sink: DataWarehouseSyncSink;
   namespace?: string;
   defaultRowThreshold?: number;
   rowThresholdOverrides?: Record<string, number>;
@@ -90,23 +84,75 @@ function getSyncSourceConnectionUrl(options: SyncOptions): string {
   return buildPostgresUrlFromMedplumDatabaseConfig(options.database, options.databaseStatementTimeout);
 }
 
+async function runWarehouseTableSync(
+  connection: DuckdbConnectionForSink & { runAndReadAll(query: string): Promise<{ getRowObjectsJson(): unknown[] }> },
+  options: SyncOptions,
+  namespace: string,
+  overrides: Record<string, number>
+): Promise<SyncResourceResult[]> {
+  const results: SyncResourceResult[] = [];
+
+  for (const spec of options.warehouseSources) {
+    const { postgresTable, tableKey } = spec;
+    const threshold = getThresholdForTable(options.defaultRowThreshold, overrides, tableKey);
+    const sourcePredicate = options.sink.buildSourcePredicate(spec, namespace);
+    const resultTableName = options.sink.getResultTableName(spec);
+    await options.sink.ensureTargetExists(spec, namespace);
+
+    const countReader = await connection.runAndReadAll(
+      `SELECT COUNT(*) AS count FROM pg_db."${postgresTable}" WHERE content IS NOT NULL AND content != '' AND (${sourcePredicate});`
+    );
+    const count = Number((countReader.getRowObjectsJson() as { count: number }[])[0]?.count ?? 0);
+    const action = getSyncAction(count, threshold);
+
+    if (action === 'insert') {
+      logSyncProgress(options, `Syncing ${tableKey}: ${count} rows (threshold ${threshold})`, {
+        table: resultTableName,
+        tableKey,
+        count,
+        threshold,
+        action,
+      });
+      await options.sink.writeRows(connection, { tableSpec: spec, namespace, sourcePredicate });
+    } else if (action === 'skip-threshold') {
+      logSyncProgress(options, `Skipping ${tableKey}: ${count} rows is below threshold ${threshold}`, {
+        table: resultTableName,
+        tableKey,
+        count,
+        threshold,
+        action,
+      });
+    } else {
+      logSyncProgress(options, `Skipping ${tableKey}: no new rows`, {
+        table: resultTableName,
+        tableKey,
+        count,
+        threshold,
+        action,
+      });
+    }
+
+    results.push({
+      tableKey,
+      table: resultTableName,
+      count,
+      threshold,
+      action,
+    });
+  }
+
+  return results;
+}
+
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
   const instance = await DuckDBInstance.create(':memory:');
   const connection = await instance.connect();
   const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
-  const dwClient = new DataWarehouseAwsClient({
-    region: options.s3Region,
-  });
   const overrides = options.rowThresholdOverrides ?? {};
-  const results: SyncResourceResult[] = [];
 
   try {
-    for (const q of buildManagedIcebergSetupQueries({
-      databaseUrl: sourceConnectionUrl,
-      s3Region: options.s3Region,
-      awsS3TableArn: options.awsS3TableArn,
-    })) {
+    for (const q of options.sink.getSetupQueries(sourceConnectionUrl)) {
       await connection.run(q);
     }
 
@@ -114,71 +160,8 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
       throw new Error('warehouseSources is required: use --table with at least one Postgres table name.');
     }
 
-    for (const spec of options.warehouseSources) {
-      const { postgresTable, icebergTable, tableKey } = spec;
-      const threshold = getThresholdForTable(options.defaultRowThreshold, overrides, tableKey);
-      const qualifiedIceberg = buildManagedIcebergQualifiedTable(namespace, icebergTable);
-      const watermarkSubquery = `(SELECT MAX(last_updated) FROM ${qualifiedIceberg})`;
-      // Incremental sync: only Postgres rows newer than the latest row already in Iceberg.
-      // When the Iceberg table is empty (or MAX is NULL), `lastUpdated > NULL` would be unknown for every row,
-      // so we treat a NULL watermark as "no high-water mark" and include all source rows instead of a sentinel timestamp.
-      const sourcePredicate = `(${watermarkSubquery} IS NULL OR "lastUpdated" > ${watermarkSubquery})`;
-      const tableExists = await dwClient.tableExists(options.awsS3TableArn, namespace, icebergTable);
-      if (!tableExists) {
-        throw new Error(
-          `Managed Iceberg table does not exist: ${namespace}.${icebergTable}. Run the migrate command before sync.`
-        );
-      }
-
-      const countReader = await connection.runAndReadAll(
-        `SELECT COUNT(*) AS count FROM pg_db."${postgresTable}" WHERE content IS NOT NULL AND content != '' AND (${sourcePredicate});`
-      );
-      const count = Number((countReader.getRowObjectsJson() as { count: number }[])[0]?.count ?? 0);
-      const action = getSyncAction(count, threshold);
-
-      if (action === 'insert') {
-        const insertColumns = WAREHOUSE_HISTORY_COLUMN_NAMES.join(', ');
-        const insertQuery = buildInsertIntoSelectQuery(
-          qualifiedIceberg,
-          insertColumns,
-          buildProjectedSelectFromHistoryTable(postgresTable, sourcePredicate)
-        );
-        logSyncProgress(options, `Syncing ${tableKey}: ${count} rows (threshold ${threshold})`, {
-          table: icebergTable,
-          tableKey,
-          count,
-          threshold,
-          action,
-        });
-        await connection.run(insertQuery);
-      } else if (action === 'skip-threshold') {
-        logSyncProgress(options, `Skipping ${tableKey}: ${count} rows is below threshold ${threshold}`, {
-          table: icebergTable,
-          tableKey,
-          count,
-          threshold,
-          action,
-        });
-      } else {
-        logSyncProgress(options, `Skipping ${tableKey}: no new rows`, {
-          table: icebergTable,
-          tableKey,
-          count,
-          threshold,
-          action,
-        });
-      }
-
-      results.push({
-        tableKey,
-        table: icebergTable,
-        count,
-        threshold,
-        action,
-      });
-    }
-
-    return { resources: results };
+    const resources = await runWarehouseTableSync(connection, options, namespace, overrides);
+    return { resources };
   } finally {
     connection.closeSync();
   }

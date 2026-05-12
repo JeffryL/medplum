@@ -370,15 +370,36 @@ Optional Postgres `statement_timeout` value (e.g. `15min`, `900s`) applied when 
 
 **Default:** Uses `database.queryTimeout` when set, otherwise `15min`
 
+#### dataWarehouseSync.sink
+
+Warehouse export sink type.
+
+- `s3tables`: Managed Iceberg tables in Amazon S3 Tables (existing behavior).
+- `local`: Write per-table Parquet files to `dataWarehouseSync.localBasePath`.
+
+**Default:** `s3tables`
+
 #### dataWarehouseSync.s3Region
 
 AWS region for S3 Tables operations.
+
+Required when `dataWarehouseSync.sink` is `s3tables`.
 
 **Default:** None
 
 #### dataWarehouseSync.awsS3TableArn
 
 AWS S3 Table ARN for managed Iceberg table access.
+
+Required when `dataWarehouseSync.sink` is `s3tables`.
+
+**Default:** None
+
+#### dataWarehouseSync.localBasePath
+
+Base output directory for local Parquet exports. Each configured warehouse table is written as `<table_key>.parquet` under this directory.
+
+Required when `dataWarehouseSync.sink` is `local`.
 
 **Default:** None
 
