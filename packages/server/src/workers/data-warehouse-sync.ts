@@ -121,7 +121,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     throw new Error('dataWarehouse.enabled must be true to run scheduled sync');
   }
 
-  const { s3Region, awsS3TableArn, localBasePath, rowThresholdOverrides, namespace } = syncConfig;
+  const { awsS3TableArn, localBasePath, namespace } = syncConfig;
 
   const dbConfig = config.readonlyDatabase ?? config.database;
   const proxyEndpoint = config.readonlyDatabase
@@ -146,13 +146,10 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
           return new LocalParquetWarehouseSink(localBasePath);
         })()
       : (() => {
-          if (!s3Region) {
-            throw new Error('dataWarehouse.s3Region is required when dataWarehouse.sink is "s3tables"');
-          }
           if (!awsS3TableArn) {
             throw new Error('dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"');
           }
-          return new S3TablesWarehouseSink(s3Region, awsS3TableArn);
+          return new S3TablesWarehouseSink(config.awsRegion, awsS3TableArn);
         })();
 
   return {
@@ -161,7 +158,6 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     sink,
     namespace,
     warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(getWarehouseSyncPostgresTableNames()),
-    rowThresholdOverrides,
   };
 }
 

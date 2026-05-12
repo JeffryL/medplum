@@ -9,13 +9,8 @@ export const DEFAULT_DATABASE_STATEMENT_TIMEOUT = '15min';
 
 const POSTGRES_WAREHOUSE_TABLE_SAFE = /^[A-Za-z][A-Za-z0-9_]*$/;
 
-function isInlinePem(value: string): boolean {
-  return value.trimStart().startsWith('-----BEGIN');
-}
-
 /**
  * Sets libpq URI query parameters (`sslmode`, `sslrootcert`, `sslcert`, `sslkey`) from {@link MedplumDatabaseSslConfig}.
- * Inline PEM strings are not supported in connection URIs; use filesystem paths (same limitation as libpq).
  *
  * @param url - Parsed `postgresql:` URL (mutated).
  * @param ssl - Optional SSL options from server database config.
@@ -36,11 +31,6 @@ function applyMedplumDatabaseSslToPostgresUrl(url: URL, ssl: MedplumDatabaseSslC
   const setPathParam = (param: 'sslrootcert' | 'sslcert' | 'sslkey', value: string | undefined): void => {
     if (value === undefined) {
       return;
-    }
-    if (isInlinePem(value)) {
-      throw new Error(
-        `database.ssl cannot use inline PEM in a Postgres connection URI (${param}). Use a filesystem path for DuckDB/libpq.`
-      );
     }
     url.searchParams.set(param, value);
   };
@@ -135,7 +125,7 @@ export interface WarehouseSourceTable {
   readonly postgresTable: string;
   /** Managed Iceberg / S3 Tables name: result of `toIcebergTableName(postgresTable)`. */
   readonly icebergTable: string;
-  /** Keys row-threshold overrides and sync log lines (same as `icebergTable`). */
+  /** Stable key for sync logs and metadata (same as `icebergTable`). */
   readonly tableKey: string;
 }
 
@@ -143,6 +133,8 @@ export interface WarehouseSourceTable {
  * Postgres history table names for all indexed repository resource types (`{ResourceType}_History`),
  * matching migrations (`resourceType + '_History'`).
  * Used by the scheduled data warehouse sync worker.
+ * 
+ * @returns The list of Postgres table names.
  */
 export function getWarehouseSyncPostgresTableNames(): string[] {
   return getResourceTypes().map((resourceType) => `${resourceType}_History`);

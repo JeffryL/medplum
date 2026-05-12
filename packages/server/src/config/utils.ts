@@ -202,7 +202,6 @@ const objectKeys = new Set([
   'workers.enabled',
   'workers.bullmq',
   'dataWarehouse',
-  'dataWarehouse.rowThresholdOverrides',
 ]);
 
 export function isObjectConfig(key: string): boolean {

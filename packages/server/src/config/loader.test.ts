@@ -349,20 +349,18 @@ describe('Config', () => {
     setEnv('MEDPLUM_BASE_URL', 'http://localhost:3000');
     setEnv('MEDPLUM_DATA_WAREHOUSE_ENABLED', 'true');
     setEnv('MEDPLUM_DATA_WAREHOUSE_CRON', '0 * * * *');
-    setEnv('MEDPLUM_DATA_WAREHOUSE_S3_REGION', 'us-east-1');
+    setEnv('MEDPLUM_AWS_REGION', 'us-west-2');
     setEnv('MEDPLUM_DATA_WAREHOUSE_AWS_S3_TABLE_ARN', 'arn:aws:s3tables:us-east-1:123456789012:bucket/test');
-    setEnv('MEDPLUM_DATA_WAREHOUSE_ROW_THRESHOLD_OVERRIDES', '{"default":1000,"patient_history":5000}');
     setEnv('MEDPLUM_DATA_WAREHOUSE_SINK', 's3tables');
 
     const config = await loadConfig('env');
     expect(config.dataWarehouse).toBeDefined();
     expect(config.dataWarehouse?.enabled).toBe(true);
     expect(config.dataWarehouse?.cron).toStrictEqual('0 * * * *');
-    expect(config.dataWarehouse?.s3Region).toStrictEqual('us-east-1');
+    expect(config.awsRegion).toStrictEqual('us-west-2');
     expect(config.dataWarehouse?.awsS3TableArn).toStrictEqual(
       'arn:aws:s3tables:us-east-1:123456789012:bucket/test'
     );
-    expect(config.dataWarehouse?.rowThresholdOverrides).toStrictEqual({ default: 1000, patient_history: 5000 });
     expect(config.dataWarehouse?.sink).toStrictEqual('s3tables');
   });
 

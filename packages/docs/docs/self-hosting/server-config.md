@@ -375,18 +375,10 @@ Optional Postgres `statement_timeout` value (e.g. `15min`, `900s`) applied when 
 
 Warehouse export sink type.
 
-- `s3tables`: Managed Iceberg tables in Amazon S3 Tables (existing behavior).
+- `s3tables`: Managed Iceberg tables in Amazon S3 Tables (existing behavior). Uses the top-level [`awsRegion`](#awsregion) for AWS API and DuckDB S3 credentials.
 - `local`: Write per-table Parquet files to `dataWarehouse.localBasePath`.
 
 **Default:** `s3tables`
-
-#### dataWarehouse.s3Region
-
-AWS region for S3 Tables operations.
-
-Required when `dataWarehouse.sink` is `s3tables`.
-
-**Default:** None
 
 #### dataWarehouse.awsS3TableArn
 
@@ -409,12 +401,6 @@ Required when `dataWarehouse.sink` is `local`.
 Optional Iceberg namespace used by sync.
 
 **Default:** `default`
-
-#### dataWarehouse.rowThresholdOverrides
-
-Optional per-table row-threshold overrides object (keys use derived table identifiers, for example `patient_history`). A special `default` key sets the threshold for any table without a more specific entry. When no override applies to a table, sync inserts whenever at least one qualifying row exists (effective threshold 1).
-
-**Default:** None
 
 ### awsRegion
 

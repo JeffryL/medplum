@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DuckDBInstance } from '@duckdb/node-api';
 import type { MedplumDatabaseConfig } from '../config/types';
 import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
 import type { WarehouseSourceTable } from './config';
-import type { DataWarehouseSyncSink, DuckdbConnectionForSink } from './sink';
+import type { DataWarehouseSink, DuckdbConnectionForSink } from './sink';
 import {
   asSqlIdentifier,
   DEFAULT_NAMESPACE,
@@ -20,9 +23,8 @@ export interface SyncOptions {
    */
   databaseStatementTimeout: string;
   warehouseSources: WarehouseSourceTable[];
-  sink: DataWarehouseSyncSink;
+  sink: DataWarehouseSink;
   namespace?: string;
-  rowThresholdOverrides?: Record<string, number>;
   onProgress?: (message: string, metadata?: Record<string, string | number>) => void;
 }
 
@@ -30,7 +32,6 @@ export interface SyncResourceResult {
   tableKey: string;
   table: string;
   count: number;
-  threshold: number;
   action: SyncAction;
 }
 
@@ -38,28 +39,14 @@ export interface SyncResult {
   resources: SyncResourceResult[];
 }
 
-export type SyncAction = 'skip-empty' | 'skip-threshold' | 'insert';
+export type SyncAction = 'skip-empty' | 'insert';
 
-export function getSyncAction(count: number, threshold: number): SyncAction {
+export function getSyncAction(count: number): SyncAction {
   if (count === 0) {
     return 'skip-empty';
   }
 
-  if (count < threshold) {
-    return 'skip-threshold';
-  }
-
   return 'insert';
-}
-
-function getThresholdForTable(overrides: Record<string, number>, tableKey: string): number {
-  const thresholdCandidate = overrides[tableKey] ?? overrides.default;
-  if (thresholdCandidate !== undefined && Number.isFinite(thresholdCandidate) && thresholdCandidate > 0) {
-    return Math.floor(thresholdCandidate);
-  }
-
-  // No default threshold configured: insert whenever at least one row exists.
-  return 1;
 }
 
 function logSyncProgress(
@@ -79,17 +66,20 @@ function getSyncSourceConnectionUrl(options: SyncOptions): string {
   return buildPostgresUrlFromMedplumDatabaseConfig(options.database, options.databaseStatementTimeout);
 }
 
+type WarehouseSyncDuckdbConnection = DuckdbConnectionForSink & {
+  runAndReadAll(query: string): Promise<{ getRowObjectsJson(): unknown[] }>;
+  closeSync(): void;
+};
+
 async function runWarehouseTableSync(
-  connection: DuckdbConnectionForSink & { runAndReadAll(query: string): Promise<{ getRowObjectsJson(): unknown[] }> },
+  connection: WarehouseSyncDuckdbConnection,
   options: SyncOptions,
-  namespace: string,
-  overrides: Record<string, number>
+  namespace: string
 ): Promise<SyncResourceResult[]> {
   const results: SyncResourceResult[] = [];
 
   for (const spec of options.warehouseSources) {
     const { postgresTable, tableKey } = spec;
-    const threshold = getThresholdForTable(overrides, tableKey);
     const sourcePredicate = options.sink.buildSourcePredicate(spec, namespace);
     const resultTableName = options.sink.getResultTableName(spec);
     await options.sink.ensureTargetExists(spec, namespace);
@@ -98,31 +88,21 @@ async function runWarehouseTableSync(
       `SELECT COUNT(*) AS count FROM pg_db."${postgresTable}" WHERE content IS NOT NULL AND content != '' AND (${sourcePredicate});`
     );
     const count = Number((countReader.getRowObjectsJson() as { count: number }[])[0]?.count ?? 0);
-    const action = getSyncAction(count, threshold);
+    const action = getSyncAction(count);
 
     if (action === 'insert') {
-      logSyncProgress(options, `Syncing ${tableKey}: ${count} rows (threshold ${threshold})`, {
+      logSyncProgress(options, `Syncing ${tableKey}: ${count} rows`, {
         table: resultTableName,
         tableKey,
         count,
-        threshold,
         action,
       });
       await options.sink.writeRows(connection, { tableSpec: spec, namespace, sourcePredicate });
-    } else if (action === 'skip-threshold') {
-      logSyncProgress(options, `Skipping ${tableKey}: ${count} rows is below threshold ${threshold}`, {
-        table: resultTableName,
-        tableKey,
-        count,
-        threshold,
-        action,
-      });
     } else {
       logSyncProgress(options, `Skipping ${tableKey}: no new rows`, {
         table: resultTableName,
         tableKey,
         count,
-        threshold,
         action,
       });
     }
@@ -131,7 +111,6 @@ async function runWarehouseTableSync(
       tableKey,
       table: resultTableName,
       count,
-      threshold,
       action,
     });
   }
@@ -140,13 +119,17 @@ async function runWarehouseTableSync(
 }
 
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
-  const instance = await DuckDBInstance.create(':memory:');
-  const connection = await instance.connect();
+
   const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
-  const overrides = options.rowThresholdOverrides ?? {};
 
+  let connection: WarehouseSyncDuckdbConnection | undefined;
+  let duckdbTempDir: string | undefined;
   try {
+    duckdbTempDir = mkdtempSync(join(tmpdir(), `medplum-dw-sync-${Date.now()}-`));
+    const duckdbDatabasePath = join(duckdbTempDir, 'warehouse.duckdb');
+    const instance = await DuckDBInstance.create(duckdbDatabasePath);
+    connection = await instance.connect();
     for (const q of options.sink.getSetupQueries(sourceConnectionUrl)) {
       await connection.run(q);
     }
@@ -155,9 +138,16 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
       throw new Error('warehouseSources is required: use --table with at least one Postgres table name.');
     }
 
-    const resources = await runWarehouseTableSync(connection, options, namespace, overrides);
+    const resources = await runWarehouseTableSync(connection, options, namespace);
     return { resources };
   } finally {
-    connection.closeSync();
+    connection?.closeSync();
+    /*
+     * DuckDB often creates companion files next to the database, so
+     * we're gonna delete the whole directory.
+     */
+    if (duckdbTempDir) {
+      rmSync(duckdbTempDir, { recursive: true, force: true });
+    }
   }
 }

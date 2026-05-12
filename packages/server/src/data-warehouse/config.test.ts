@@ -87,21 +87,6 @@ describe('config helpers', () => {
     );
     expect(new URL(out).searchParams.get('sslmode')).toBe('verify-full');
   });
-
-  it('buildPostgresUrlFromMedplumDatabaseConfig rejects inline PEM for ssl.ca', () => {
-    expect(() =>
-      buildPostgresUrlFromMedplumDatabaseConfig(
-        {
-          host: 'localhost',
-          dbname: 'db',
-          username: 'u',
-          password: 'p',
-          ssl: { ca: '-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----' },
-        },
-        ''
-      )
-    ).toThrow('inline PEM');
-  });
 });
 
 describe('resolveWarehouseSourcesFromPostgresTableNames', () => {

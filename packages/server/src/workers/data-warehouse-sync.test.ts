@@ -86,7 +86,6 @@ function buildConfig(overrides?: Partial<MedplumServerConfig>): MedplumServerCon
       enabled: true,
       cron: '0 * * * *',
       sink: 's3tables',
-      s3Region: 'us-east-1',
       awsS3TableArn: 'arn:aws:s3tables:us-east-1:123456789012:bucket/test',
     },
     ...overrides,

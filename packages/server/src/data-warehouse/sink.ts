@@ -14,7 +14,7 @@ import {
   WAREHOUSE_HISTORY_COLUMN_NAMES,
 } from './warehouse-sql';
 
-export type DataWarehouseSyncSinkType = 's3tables' | 'local';
+export type DataWarehouseSinkType = 's3tables' | 'local';
 
 export interface DuckdbConnectionForSink {
   run(query: string): Promise<unknown>;
@@ -26,8 +26,8 @@ interface SinkQueryContext {
   sourcePredicate: string;
 }
 
-export interface DataWarehouseSyncSink {
-  readonly type: DataWarehouseSyncSinkType;
+export interface DataWarehouseSink {
+  readonly type: DataWarehouseSinkType;
   getSetupQueries(databaseUrl: string): string[];
   ensureTargetExists(tableSpec: WarehouseSourceTable, namespace: string): Promise<void>;
   buildSourcePredicate(tableSpec: WarehouseSourceTable, namespace: string): string;
@@ -35,15 +35,19 @@ export interface DataWarehouseSyncSink {
   getResultTableName(tableSpec: WarehouseSourceTable): string;
 }
 
-export class S3TablesWarehouseSink implements DataWarehouseSyncSink {
-  readonly type: DataWarehouseSyncSinkType = 's3tables';
+export class S3TablesWarehouseSink implements DataWarehouseSink {
+  type: DataWarehouseSinkType = 's3tables';
 
   private readonly dwClient: DataWarehouseAwsClient;
+  private readonly s3Region: string;
+  private readonly awsS3TableArn: string;
 
   constructor(
-    private readonly s3Region: string,
-    private readonly awsS3TableArn: string
+    s3Region: string,
+    awsS3TableArn: string
   ) {
+    this.s3Region = s3Region;
+    this.awsS3TableArn = awsS3TableArn;
     this.dwClient = new DataWarehouseAwsClient({ region: s3Region });
   }
 
@@ -89,10 +93,13 @@ export class S3TablesWarehouseSink implements DataWarehouseSyncSink {
   }
 }
 
-export class LocalParquetWarehouseSink implements DataWarehouseSyncSink {
-  readonly type: DataWarehouseSyncSinkType = 'local';
+export class LocalParquetWarehouseSink implements DataWarehouseSink {
+  readonly type: DataWarehouseSinkType = 'local';
+  private readonly basePath: string;
 
-  constructor(private readonly basePath: string) {}
+  constructor(basePath: string) {
+    this.basePath = basePath;
+  }
 
   getSetupQueries(databaseUrl: string): string[] {
     return ['INSTALL postgres;', 'LOAD postgres;', `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS pg_db (TYPE postgres);`];
@@ -110,7 +117,7 @@ export class LocalParquetWarehouseSink implements DataWarehouseSyncSink {
     const parquetPath = this.getParquetPathForTable(context.tableSpec);
     const escapedPath = escapeSqlLiteral(parquetPath);
     const projectedSelect = buildProjectedSelectFromHistoryTable(context.tableSpec.postgresTable, context.sourcePredicate);
-    await connection.run(`COPY (${projectedSelect}) TO '${escapedPath}' (FORMAT PARQUET);`);
+    await connection.run(`COPY (${projectedSelect}) TO '${escapedPath}' (FORMAT PARQUET, COMPRESSION zstd);`);
   }
 
   getResultTableName(tableSpec: WarehouseSourceTable): string {
