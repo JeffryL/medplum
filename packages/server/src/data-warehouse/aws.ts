@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  CreateNamespaceCommand,
-  GetTableCommand,
-  S3TablesClient,
-} from '@aws-sdk/client-s3tables';
+import { CreateNamespaceCommand, GetTableCommand, S3TablesClient } from '@aws-sdk/client-s3tables';
 import { asSqlIdentifier } from './warehouse-sql';
 
 export interface DataWarehouseAwsClientOptions {

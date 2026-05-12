@@ -93,10 +93,7 @@ export function mergePostgresStatementTimeout(databaseUrl: string, statementTime
  * @param statementTimeout - Postgres `statement_timeout` duration (e.g. `15min`); empty uses {@link DEFAULT_DATABASE_STATEMENT_TIMEOUT}.
  * @returns A `postgresql:` URI with `options=-c statement_timeout=...` encoded for libpq.
  */
-export function buildPostgresUrlFromMedplumDatabaseConfig(
-  db: MedplumDatabaseConfig,
-  statementTimeout: string
-): string {
+export function buildPostgresUrlFromMedplumDatabaseConfig(db: MedplumDatabaseConfig, statementTimeout: string): string {
   const host = db.host;
   const dbname = db.dbname;
   const username = db.username;
@@ -104,9 +101,7 @@ export function buildPostgresUrlFromMedplumDatabaseConfig(
   const port = db.port ?? 5432;
 
   if (!host || !dbname || !username || !password) {
-    throw new Error(
-      'Missing required database configuration: host, dbname, username, and password are required.'
-    );
+    throw new Error('Missing required database configuration: host, dbname, username, and password are required.');
   }
 
   const baseUrl = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${dbname}`;
@@ -133,7 +128,7 @@ export interface WarehouseSourceTable {
  * Postgres history table names for all indexed repository resource types (`{ResourceType}_History`),
  * matching migrations (`resourceType + '_History'`).
  * Used by the scheduled data warehouse sync worker.
- * 
+ *
  * @returns The list of Postgres table names.
  */
 export function getWarehouseSyncPostgresTableNames(): string[] {

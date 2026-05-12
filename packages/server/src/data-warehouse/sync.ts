@@ -1,18 +1,15 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { DuckDBInstance } from '@duckdb/node-api';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DuckDBInstance } from '@duckdb/node-api';
 import type { MedplumDatabaseConfig } from '../config/types';
-import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
 import type { WarehouseSourceTable } from './config';
+import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
 import type { DataWarehouseSink, DuckdbConnectionForSink } from './sink';
-import {
-  asSqlIdentifier,
-  DEFAULT_NAMESPACE,
-} from './warehouse-sql';
+import { asSqlIdentifier, DEFAULT_NAMESPACE } from './warehouse-sql';
 
 export interface SyncOptions {
   /** Same shape as server `database` / `readonlyDatabase` in `MedplumServerConfig`; host, dbname, username, and password are required when running sync. */
@@ -119,7 +116,6 @@ async function runWarehouseTableSync(
 }
 
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
-
   const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
   const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
 

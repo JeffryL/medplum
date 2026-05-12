@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { execSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 
 type StartedContainer = Awaited<ReturnType<PostgreSqlContainer['start']>>;
 
@@ -83,9 +83,7 @@ export async function startPostgresSslTestContainer(image = 'postgres:17'): Prom
   sslDir: string;
 }> {
   const { sslDir, caCertPath, serverCertPath, serverKeyPath } = createTempPostgresSslMaterial();
-  const container = await new PostgreSqlContainer(image)
-    .withSSLCert(caCertPath, serverCertPath, serverKeyPath)
-    .start();
+  const container = await new PostgreSqlContainer(image).withSSLCert(caCertPath, serverCertPath, serverKeyPath).start();
   return {
     container,
     connectionUri: container.getConnectionUri(),

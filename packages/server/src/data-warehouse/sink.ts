@@ -42,10 +42,7 @@ export class S3TablesWarehouseSink implements DataWarehouseSink {
   private readonly s3Region: string;
   private readonly awsS3TableArn: string;
 
-  constructor(
-    s3Region: string,
-    awsS3TableArn: string
-  ) {
+  constructor(s3Region: string, awsS3TableArn: string) {
     this.s3Region = s3Region;
     this.awsS3TableArn = awsS3TableArn;
     this.dwClient = new DataWarehouseAwsClient({ region: s3Region });
@@ -102,7 +99,11 @@ export class LocalParquetWarehouseSink implements DataWarehouseSink {
   }
 
   getSetupQueries(databaseUrl: string): string[] {
-    return ['INSTALL postgres;', 'LOAD postgres;', `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS pg_db (TYPE postgres);`];
+    return [
+      'INSTALL postgres;',
+      'LOAD postgres;',
+      `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS pg_db (TYPE postgres);`,
+    ];
   }
 
   async ensureTargetExists(_tableSpec: WarehouseSourceTable, _namespace: string): Promise<void> {
@@ -116,7 +117,10 @@ export class LocalParquetWarehouseSink implements DataWarehouseSink {
   async writeRows(connection: DuckdbConnectionForSink, context: SinkQueryContext): Promise<void> {
     const parquetPath = this.getParquetPathForTable(context.tableSpec);
     const escapedPath = escapeSqlLiteral(parquetPath);
-    const projectedSelect = buildProjectedSelectFromHistoryTable(context.tableSpec.postgresTable, context.sourcePredicate);
+    const projectedSelect = buildProjectedSelectFromHistoryTable(
+      context.tableSpec.postgresTable,
+      context.sourcePredicate
+    );
     await connection.run(`COPY (${projectedSelect}) TO '${escapedPath}' (FORMAT PARQUET, COMPRESSION zstd);`);
   }
 

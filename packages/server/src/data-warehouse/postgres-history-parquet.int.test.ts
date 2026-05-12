@@ -4,7 +4,7 @@
 /** Integration: Postgres (Testcontainers) → syncData (sink: local) → Parquet on disk. */
 
 import { DuckDBInstance } from '@duckdb/node-api';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';

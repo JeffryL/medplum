@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
+import type { Job, QueueBaseOptions } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
+import type { MedplumServerConfig } from '../config/types';
+import { assertEnabledDataWarehouseComplete } from '../config/validate-config';
 import {
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
   getWarehouseSyncPostgresTableNames,
@@ -10,10 +13,7 @@ import {
 import { LocalParquetWarehouseSink, S3TablesWarehouseSink } from '../data-warehouse/sink';
 import type { SyncOptions } from '../data-warehouse/sync';
 import { syncData } from '../data-warehouse/sync';
-import type { Job, QueueBaseOptions } from 'bullmq';
-import { Queue, Worker } from 'bullmq';
-import type { MedplumServerConfig } from '../config/types';
-import { assertEnabledDataWarehouseComplete } from '../config/validate-config';
+import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
 import { globalLogger } from '../logger';
 import type { WorkerInitializer, WorkerInitializerOptions } from './utils';
 import { getBullmqRedisConnectionOptions, getWorkerBullmqConfig, queueRegistry } from './utils';
@@ -125,9 +125,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
   const { awsS3TableArn, localBasePath, namespace } = syncConfig;
 
   const dbConfig = config.readonlyDatabase ?? config.database;
-  const proxyEndpoint = config.readonlyDatabase
-    ? config.readonlyDatabaseProxyEndpoint
-    : config.databaseProxyEndpoint;
+  const proxyEndpoint = config.readonlyDatabase ? config.readonlyDatabaseProxyEndpoint : config.databaseProxyEndpoint;
   const resolvedDb = resolveMedplumDatabaseTcpConnection(dbConfig, proxyEndpoint);
 
   const { host, dbname, username, password } = resolvedDb;

@@ -38,6 +38,5 @@
     "enabled": false
   },
   "shutdownTimeoutMilliseconds": 30000,
-  "workers": {
-  }
+  "workers": {}
 }

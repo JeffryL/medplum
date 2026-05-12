@@ -358,9 +358,7 @@ describe('Config', () => {
     expect(config.dataWarehouse?.enabled).toBe(true);
     expect(config.dataWarehouse?.cron).toStrictEqual('0 * * * *');
     expect(config.awsRegion).toStrictEqual('us-west-2');
-    expect(config.dataWarehouse?.awsS3TableArn).toStrictEqual(
-      'arn:aws:s3tables:us-east-1:123456789012:bucket/test'
-    );
+    expect(config.dataWarehouse?.awsS3TableArn).toStrictEqual('arn:aws:s3tables:us-east-1:123456789012:bucket/test');
     expect(config.dataWarehouse?.sink).toStrictEqual('s3tables');
   });
 
