@@ -13,6 +13,7 @@ import { syncData } from '../data-warehouse/sync';
 import type { Job, QueueBaseOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
 import type { MedplumServerConfig } from '../config/types';
+import { assertEnabledDataWarehouseComplete } from '../config/validate-config';
 import { globalLogger } from '../logger';
 import type { WorkerInitializer, WorkerInitializerOptions } from './utils';
 import { getBullmqRedisConnectionOptions, getWorkerBullmqConfig, queueRegistry } from './utils';
@@ -82,9 +83,7 @@ export async function refreshDataWarehouseSyncScheduler(
     return;
   }
 
-  if (!syncConfig.cron) {
-    throw new Error('dataWarehouse.cron is required when dataWarehouse.enabled is true');
-  }
+  assertEnabledDataWarehouseComplete(syncConfig);
 
   await queue.upsertJobScheduler(
     DataWarehouseSyncSchedulerId,
@@ -121,6 +120,8 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     throw new Error('dataWarehouse.enabled must be true to run scheduled sync');
   }
 
+  assertEnabledDataWarehouseComplete(syncConfig);
+
   const { awsS3TableArn, localBasePath, namespace } = syncConfig;
 
   const dbConfig = config.readonlyDatabase ?? config.database;
@@ -139,18 +140,8 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
   const sinkType = syncConfig.sink ?? 's3tables';
   const sink =
     sinkType === 'local'
-      ? (() => {
-          if (!localBasePath) {
-            throw new Error('dataWarehouse.localBasePath is required when dataWarehouse.sink is "local"');
-          }
-          return new LocalParquetWarehouseSink(localBasePath);
-        })()
-      : (() => {
-          if (!awsS3TableArn) {
-            throw new Error('dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"');
-          }
-          return new S3TablesWarehouseSink(config.awsRegion, awsS3TableArn);
-        })();
+      ? new LocalParquetWarehouseSink(localBasePath as string)
+      : new S3TablesWarehouseSink(config.awsRegion, awsS3TableArn as string);
 
   return {
     database: resolvedDb,

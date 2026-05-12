@@ -35,10 +35,7 @@
     "removeOnComplete": { "count": 1 }
   },
   "dataWarehouse": {
-    "enabled": true,
-    "cron": "* * * * *",
-    "sink": "s3tables",
-    "awsS3TableArn": "arn:aws:s3tables:us-east-1:462446642923:bucket/data-warehouse"
+    "enabled": false
   },
   "shutdownTimeoutMilliseconds": 30000,
   "workers": {

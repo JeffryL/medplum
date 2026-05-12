@@ -364,6 +364,17 @@ describe('Config', () => {
     expect(config.dataWarehouse?.sink).toStrictEqual('s3tables');
   });
 
+  test('loadConfig throws when dataWarehouse is enabled for s3tables but awsS3TableArn is missing', async () => {
+    setEnv('MEDPLUM_BASE_URL', 'http://localhost:3000');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_ENABLED', 'true');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_CRON', '0 * * * *');
+    setEnv('MEDPLUM_DATA_WAREHOUSE_SINK', 's3tables');
+
+    await expect(loadConfig('env')).rejects.toThrow(
+      'dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"'
+    );
+  });
+
   test('Env config dataWarehouse local sink fields', async () => {
     setEnv('MEDPLUM_BASE_URL', 'http://localhost:3000');
     setEnv('MEDPLUM_DATA_WAREHOUSE_ENABLED', 'true');
@@ -430,5 +441,7 @@ describe('Config', () => {
     expect(config.defaultRateLimit).toStrictEqual(-1);
     expect(config.defaultSuperAdminClientId).toBeDefined();
     expect(config.defaultSuperAdminClientSecret).toBeDefined();
+    expect(config.dataWarehouse?.enabled).toStrictEqual(true);
+    expect(config.dataWarehouse?.cron).toBeDefined();
   });
 });
