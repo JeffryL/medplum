@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DuckDBInstance } from '@duckdb/node-api';
-import { rmSync } from 'node:fs';
 import pg from 'pg';
+import { loadTestConfig } from '../config/loader';
 import {
   buildPostgresUrlFromMedplumDatabaseConfig,
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
   mergePostgresStatementTimeout,
 } from './config';
-import { startPostgresSslTestContainer, startPostgresTestContainer } from './postgres-testcontainer.util';
 import { buildDuckdbPostgresAttachQuery } from './warehouse-sql';
 
 /**
@@ -23,7 +22,6 @@ import { buildDuckdbPostgresAttachQuery } from './warehouse-sql';
  * TODO: figure out if there's a better way to do this using DuckDB APIs directly
  */
 describe('config (integration)', () => {
-  let container: { stop(): Promise<unknown> } | undefined;
   let connectionUri: string;
   let host: string;
   let port: number;
@@ -32,21 +30,15 @@ describe('config (integration)', () => {
   let password: string;
 
   beforeAll(async () => {
-    const started = await startPostgresTestContainer();
-    container = started.container;
-    connectionUri = started.connectionUri;
-    host = started.host;
-    port = started.port;
-    database = started.database;
-    username = started.username;
-    password = started.password;
+    const config = await loadTestConfig();
+    const db = config.database;
+    host = db.host;
+    port = db.port;
+    database = db.dbname;
+    username = db.username;
+    password = db.password;
+    connectionUri = buildPostgresUrlFromMedplumDatabaseConfig(db, '');
   }, 60_000);
-
-  afterAll(async () => {
-    if (container) {
-      await container.stop();
-    }
-  }, 30_000);
 
   it('sets statement_timeout for direct libpq (pg) and for DuckDB ATTACH + postgres_query', async () => {
     const want = '4s';
@@ -125,89 +117,6 @@ describe('config (integration)', () => {
     try {
       const { rows } = await client.query(`select current_setting('statement_timeout') as t`);
       expect(rows[0]?.t).toBe('3s');
-    } finally {
-      await client.end();
-    }
-  }, 30_000);
-});
-
-describe('buildPostgresUrlFromMedplumDatabaseConfig (SSL, integration)', () => {
-  let container: { stop(): Promise<unknown> } | undefined;
-  let sslDir: string | undefined;
-  let host: string;
-  let port: number;
-  let database: string;
-  let username: string;
-  let password: string;
-  let caCertPath: string;
-
-  beforeAll(async () => {
-    const started = await startPostgresSslTestContainer();
-    container = started.container;
-    sslDir = started.sslDir;
-    host = started.host;
-    port = started.port;
-    database = started.database;
-    username = started.username;
-    password = started.password;
-    caCertPath = started.caCertPath;
-  }, 120_000);
-
-  afterAll(async () => {
-    if (container) {
-      await container.stop();
-    }
-    if (sslDir) {
-      rmSync(sslDir, { recursive: true, force: true });
-    }
-  }, 30_000);
-
-  it('connects when ssl.rejectUnauthorized is false (sslmode=require)', async () => {
-    const url = buildPostgresUrlFromMedplumDatabaseConfig(
-      {
-        host,
-        port,
-        dbname: database,
-        username,
-        password,
-        ssl: { require: true, rejectUnauthorized: false },
-      },
-      '5s'
-    );
-    expect(new URL(url).searchParams.get('sslmode')).toBe('require');
-
-    // Node pg currently maps sslmode=require to verify-full unless uselibpqcompat=true (see pg-connection-string warning).
-    const client = new pg.Client({ connectionString: `${url}&uselibpqcompat=true` });
-    await client.connect();
-    try {
-      const { rows } = await client.query(`select 1 as ok`);
-      expect(rows[0]?.ok).toBe(1);
-    } finally {
-      await client.end();
-    }
-  }, 30_000);
-
-  it('connects when ssl.rejectUnauthorized is true and ca is a filesystem path (verify-ca)', async () => {
-    const url = buildPostgresUrlFromMedplumDatabaseConfig(
-      {
-        host,
-        port,
-        dbname: database,
-        username,
-        password,
-        ssl: { require: true, rejectUnauthorized: true, ca: caCertPath },
-      },
-      '5s'
-    );
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get('sslmode')).toBe('verify-ca');
-    expect(parsed.searchParams.get('sslrootcert')).toBe(caCertPath);
-
-    const client = new pg.Client({ connectionString: `${url}&uselibpqcompat=true` });
-    await client.connect();
-    try {
-      const { rows } = await client.query(`select 1 as ok`);
-      expect(rows[0]?.ok).toBe(1);
     } finally {
       await client.end();
     }

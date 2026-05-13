@@ -1,17 +1,20 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/** Integration: Postgres (Testcontainers) → syncData (sink: local) → Parquet on disk. */
+/** Integration: Postgres (medplum_test) → syncData (sink: local) → Parquet on disk. */
 
 import { DuckDBInstance } from '@duckdb/node-api';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
+import { loadTestConfig } from '../config/loader';
 import { DEFAULT_DATABASE_STATEMENT_TIMEOUT, resolveWarehouseSourcesFromPostgresTableNames } from './config';
-import { startPostgresTestContainer } from './postgres-testcontainer.util';
 import { LocalParquetWarehouseSink } from './sink';
 import { syncData } from './sync';
+
+/** Isolated history table in medplum_test so we do not collide with real FHIR history tables. */
+const HISTORY_TABLE = 'DwSyncIntTest_history';
 
 function assertParquetMagic(bytes: Buffer): void {
   expect(bytes.subarray(0, 4).toString('ascii')).toBe('PAR1');
@@ -19,14 +22,10 @@ function assertParquetMagic(bytes: Buffer): void {
 }
 
 /**
- * Integration: Postgres (Testcontainers) → syncData (sink: local) → Parquet on disk.
- *
- * This test exercises the local Parquet sink by writing a single row to a Postgres history table,
+ * Exercises the local Parquet sink by writing a single row to a dedicated Postgres history table,
  * then syncing it to a local Parquet file.
- *
  */
 describe('syncData local sink (integration)', () => {
-  let container: { stop(): Promise<unknown> } | undefined;
   let host: string;
   let port: number;
   let database: string;
@@ -35,19 +34,26 @@ describe('syncData local sink (integration)', () => {
   let outDir: string | undefined;
 
   beforeAll(async () => {
-    const started = await startPostgresTestContainer();
-    container = started.container;
-    host = started.host;
-    port = started.port;
-    database = started.database;
-    username = started.username;
-    password = started.password;
+    const config = await loadTestConfig();
+    const db = config.database;
+    host = db.host ?? '';
+    port = db.port ?? 5432;
+    database = db.dbname ?? '';
+    username = db.username ?? '';
+    password = db.password ?? '';
 
-    const client = new pg.Client({ connectionString: started.connectionUri });
+    const client = new pg.Client({
+      host,
+      port,
+      database,
+      user: username,
+      password,
+    });
     await client.connect();
     try {
+      await client.query(`DROP TABLE IF EXISTS "${HISTORY_TABLE}"`);
       await client.query(`
-        CREATE TABLE "Patient_history" (
+        CREATE TABLE "${HISTORY_TABLE}" (
           id TEXT NOT NULL,
           "versionId" TEXT NOT NULL,
           content TEXT NOT NULL,
@@ -55,7 +61,7 @@ describe('syncData local sink (integration)', () => {
         );
       `);
       await client.query(
-        `INSERT INTO "Patient_history" (id, "versionId", content, "lastUpdated") VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO "${HISTORY_TABLE}" (id, "versionId", content, "lastUpdated") VALUES ($1, $2, $3, $4)`,
         [
           'patient-int-1',
           '1',
@@ -73,8 +79,18 @@ describe('syncData local sink (integration)', () => {
   }, 120_000);
 
   afterAll(async () => {
-    if (container) {
-      await container.stop();
+    const client = new pg.Client({
+      host,
+      port,
+      database,
+      user: username,
+      password,
+    });
+    await client.connect();
+    try {
+      await client.query(`DROP TABLE IF EXISTS "${HISTORY_TABLE}"`);
+    } finally {
+      await client.end();
     }
     if (outDir) {
       rmSync(outDir, { recursive: true, force: true });
@@ -92,16 +108,17 @@ describe('syncData local sink (integration)', () => {
   });
 
   it('exports projected history rows to a Parquet file via local sink', async () => {
+    const sources = resolveWarehouseSourcesFromPostgresTableNames([HISTORY_TABLE]);
     const sink = new LocalParquetWarehouseSink(outDir as string);
     const result = await syncData({
       database: { host, port, dbname: database, username, password },
       databaseStatementTimeout: DEFAULT_DATABASE_STATEMENT_TIMEOUT,
-      warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(['Patient_history']),
+      warehouseSources: sources,
       sink,
     });
     expect(result.resources).toHaveLength(1);
     expect(result.resources[0]?.action).toBe('insert');
-    expect(result.resources[0]?.table).toContain('patient_history.parquet');
+    expect(result.resources[0]?.table).toContain(`${sources[0]?.icebergTable}.parquet`);
 
     const parquetPath = result.resources[0]?.table;
     assertParquetMagic(readFileSync(parquetPath));
