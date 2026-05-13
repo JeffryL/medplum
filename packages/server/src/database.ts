@@ -5,7 +5,6 @@ import type { PoolClient } from 'pg';
 import { Pool } from 'pg';
 import * as semver from 'semver';
 import type { MedplumDatabaseConfig, MedplumServerConfig } from './config/types';
-import { resolveMedplumDatabaseTcpConnection } from './database-connection';
 import { globalLogger } from './logger';
 import { getPostDeployVersion, getPreDeployVersion } from './migration-sql';
 import {
@@ -55,20 +54,25 @@ export async function initDatabase(serverConfig: MedplumServerConfig): Promise<v
 }
 
 async function initPool(config: MedplumDatabaseConfig, proxyEndpoint: string | undefined): Promise<Pool> {
-  const resolved = resolveMedplumDatabaseTcpConnection(config, proxyEndpoint);
   const poolConfig = {
-    host: resolved.host,
-    port: resolved.port,
-    database: resolved.dbname,
-    user: resolved.username,
-    password: resolved.password,
+    host: config.host,
+    port: config.port,
+    database: config.dbname,
+    user: config.username,
+    password: config.password,
     application_name: 'medplum-server',
-    ssl: resolved.ssl,
-    max: resolved.maxConnections ?? 100,
-    options: resolved.disableConnectionConfiguration
+    ssl: config.ssl,
+    max: config.maxConnections ?? 100,
+    options: config.disableConnectionConfiguration
       ? undefined
-      : `-c statement_timeout=${resolved.queryTimeout ?? DEFAULT_STATEMENT_TIMEOUT} -c default_transaction_isolation=repeatable\\ read -c idle_in_transaction_session_timeout=30000`,
+      : `-c statement_timeout=${config.queryTimeout ?? DEFAULT_STATEMENT_TIMEOUT} -c default_transaction_isolation=repeatable\\ read -c idle_in_transaction_session_timeout=30000`,
   };
+
+  if (proxyEndpoint) {
+    poolConfig.host = proxyEndpoint;
+    poolConfig.ssl = poolConfig.ssl ?? {};
+    poolConfig.ssl.require = true;
+  }
 
   const pool = new Pool(poolConfig);
 

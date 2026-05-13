@@ -3,7 +3,7 @@
 
 import type { Job, QueueBaseOptions } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
-import type { MedplumServerConfig } from '../config/types';
+import type { MedplumDatabaseConfig, MedplumServerConfig } from '../config/types';
 import { assertEnabledDataWarehouseComplete } from '../config/validate-config';
 import {
   DEFAULT_DATABASE_STATEMENT_TIMEOUT,
@@ -13,7 +13,6 @@ import {
 import { LocalParquetWarehouseSink, S3TablesWarehouseSink } from '../data-warehouse/sink';
 import type { SyncOptions } from '../data-warehouse/sync';
 import { syncData } from '../data-warehouse/sync';
-import { resolveMedplumDatabaseTcpConnection } from '../database-connection';
 import { globalLogger } from '../logger';
 import type { WorkerInitializer, WorkerInitializerOptions } from './utils';
 import { getBullmqRedisConnectionOptions, getWorkerBullmqConfig, queueRegistry } from './utils';
@@ -126,7 +125,7 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
 
   const dbConfig = config.readonlyDatabase ?? config.database;
   const proxyEndpoint = config.readonlyDatabase ? config.readonlyDatabaseProxyEndpoint : config.databaseProxyEndpoint;
-  const resolvedDb = resolveMedplumDatabaseTcpConnection(dbConfig, proxyEndpoint);
+  const resolvedDb = resolveMedplumDatabaseConfigForProxy(dbConfig, proxyEndpoint);
 
   const { host, dbname, username, password } = resolvedDb;
   if (!host || !dbname || !username || !password) {
@@ -147,6 +146,23 @@ export function getDataWarehouseSyncOptions(config: MedplumServerConfig): SyncOp
     sink,
     namespace,
     warehouseSources: resolveWarehouseSourcesFromPostgresTableNames(getWarehouseSyncPostgresTableNames()),
+  };
+}
+
+// Host and TLS for DuckDB/libpq when using the same RDS proxy endpoint as the server DB pools.
+// TODO: needs more tests
+function resolveMedplumDatabaseConfigForProxy(
+  dbConfig: MedplumDatabaseConfig,
+  proxyEndpoint: string | undefined
+): MedplumDatabaseConfig {
+  if (!proxyEndpoint) {
+    return dbConfig;
+  }
+
+  return {
+    ...dbConfig,
+    host: proxyEndpoint,
+    ssl: { ...(dbConfig.ssl ?? {}), require: true },
   };
 }
 

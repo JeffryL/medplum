@@ -61,6 +61,7 @@ export function buildProjectedSelectFromHistoryTable(sourceHistoryTable: string,
 /**
  * `INSTALL` / `LOAD` lines for the managed Iceberg / S3 Tables DuckDB stack (extensions used by {@link buildManagedIcebergSetupQueries}).
  *
+ * @see https://duckdb.org/docs/current/core_extensions/postgres
  * @returns SQL statements in execution order.
  */
 export function buildManagedIcebergExtensionQueries(): string[] {
@@ -78,7 +79,8 @@ export function buildManagedIcebergExtensionQueries(): string[] {
 
 /**
  * DuckDB default secret for S3-backed Iceberg (managed S3 Tables path).
- *
+ * @see https://duckdb.org/docs/current/core_extensions/postgres
+ * @see https://duckdb.org/docs/current/core_extensions/aws#credential_chain-provider
  * @param s3Region - AWS region passed to the secret.
  * @returns Single `CREATE SECRET` statement.
  */
@@ -88,7 +90,8 @@ export function buildManagedS3CredentialSecretQuery(s3Region: string): string {
 
 /**
  * DuckDB `ATTACH` for AWS S3 Tables as the `s3_tables_db` Iceberg catalog.
- *
+ * 
+ * @see https://duckdb.org/docs/current/core_extensions/iceberg/amazon_s3_tables
  * @param awsS3TableArn - S3 Tables bucket ARN.
  * @returns Single `ATTACH` statement.
  */

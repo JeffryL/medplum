@@ -7,11 +7,10 @@ import type { MedplumDatabaseConfig, MedplumDatabaseSslConfig } from '../config/
 /** Default Postgres `statement_timeout` applied to DuckDB-attached connections (PostgreSQL duration syntax). */
 export const DEFAULT_DATABASE_STATEMENT_TIMEOUT = '15min';
 
-const POSTGRES_WAREHOUSE_TABLE_SAFE = /^[A-Za-z][A-Za-z0-9_]*$/;
-
 /**
  * Sets libpq URI query parameters (`sslmode`, `sslrootcert`, `sslcert`, `sslkey`) from {@link MedplumDatabaseSslConfig}.
  *
+ * Unfortunately, we need to construct this file for DuckDB/libpq support
  * @param url - Parsed `postgresql:` URL (mutated).
  * @param ssl - Optional SSL options from server database config.
  */
@@ -87,7 +86,7 @@ export function mergePostgresStatementTimeout(databaseUrl: string, statementTime
  * Builds a Postgres connection URI for DuckDB / libpq from {@link MedplumDatabaseConfig}, including
  * `statement_timeout` via the URL `options` query parameter and TLS via `sslmode` / `sslrootcert` / `sslcert` / `sslkey`
  * derived from {@link MedplumDatabaseConfig.ssl} in line with how `pg` uses the same object (encryption vs verify, CA paths).
- * Pass the output of `resolveMedplumDatabaseTcpConnection` when using a proxy so host and `ssl.require` match `database.ts`.
+ * When using an RDS proxy, callers should set `host` to the proxy endpoint and `ssl.require` to true (same as `database.ts` pool config).
  *
  * @param db - Medplum database settings; host, dbname, username, and password must be set.
  * @param statementTimeout - Postgres `statement_timeout` duration (e.g. `15min`); empty uses {@link DEFAULT_DATABASE_STATEMENT_TIMEOUT}.
@@ -140,7 +139,7 @@ export function getWarehouseSyncPostgresTableNames(): string[] {
  * breaks, then lowercase (non-alphanumeric except underscore → underscore).
  *
  * @param tableIdentifier - Postgres `relname`-style identifier (e.g. `AuditEvent_history`).
- * @returns Normalized name (e.g. `audit_event_history`).
+ * @returns Normalized name (e.g. `auditevent_history`).
  */
 function toIcebergTableName(tableIdentifier: string): string {
   return tableIdentifier
@@ -162,12 +161,6 @@ export function resolveWarehouseSourcesFromPostgresTableNames(tableNames: string
     const postgresTable = raw.trim();
     if (!postgresTable) {
       continue;
-    }
-
-    if (!POSTGRES_WAREHOUSE_TABLE_SAFE.test(postgresTable)) {
-      throw new Error(
-        `Invalid Postgres table name ${JSON.stringify(postgresTable)}: use only ASCII letters, digits, and underscore, starting with a letter (exact identifier for your database)`
-      );
     }
 
     const icebergTable = toIcebergTableName(postgresTable);

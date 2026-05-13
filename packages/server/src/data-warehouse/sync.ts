@@ -122,6 +122,7 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
   let connection: WarehouseSyncDuckdbConnection | undefined;
   let duckdbTempDir: string | undefined;
   try {
+    // create a temporary directory for the DuckDB database
     duckdbTempDir = mkdtempSync(join(tmpdir(), `medplum-dw-sync-${Date.now()}-`));
     const duckdbDatabasePath = join(duckdbTempDir, 'warehouse.duckdb');
     const instance = await DuckDBInstance.create(duckdbDatabasePath);
@@ -137,6 +138,7 @@ export async function syncData(options: SyncOptions): Promise<SyncResult> {
     const resources = await runWarehouseTableSync(connection, options, namespace);
     return { resources };
   } finally {
+    // close the DuckDB connection
     connection?.closeSync();
     /*
      * DuckDB often creates companion files next to the database, so

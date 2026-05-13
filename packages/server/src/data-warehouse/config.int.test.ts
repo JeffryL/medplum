@@ -16,6 +16,11 @@ import { buildDuckdbPostgresAttachQuery } from './warehouse-sql';
  * Exercises `mergePostgresStatementTimeout` and `buildPostgresUrlFromMedplumDatabaseConfig` against a real Postgres
  * and DuckDB’s postgres `ATTACH` (same path as data-warehouse sync), so URL `options` encoding matches
  * what libpq/DuckDB expect (spaces must not be `+` in the `options` token).
+ * 
+ * This is unfortunately necessary because while our config provides db host, name, ssl, etc. individually,
+ * we need to construct the full connection URI for DuckDB/libpq.
+ * 
+ * TODO: figure out if there's a better way to do this using DuckDB APIs directly
  */
 describe('config (integration)', () => {
   let container: { stop(): Promise<unknown> } | undefined;
