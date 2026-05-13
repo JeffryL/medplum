@@ -19,13 +19,11 @@ export function assertEnabledDataWarehouseComplete(dw: MedplumDataWarehouseConfi
     if (!dw.localBasePath?.trim()) {
       throw new Error('dataWarehouse.localBasePath is required when dataWarehouse.sink is "local"');
     }
-  }
-  else if (sink === 's3tables') {
+  } else if (sink === 's3tables') {
     if (!dw.awsS3TableArn?.trim()) {
       throw new Error('dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"');
     }
-  }
-  else {
+  } else {
     throw new Error(`dataWarehouse.sink must be "s3tables" or "local"`);
   }
 }
