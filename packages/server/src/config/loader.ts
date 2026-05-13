@@ -168,7 +168,9 @@ export async function loadTestConfig(): Promise<MedplumServerConfig> {
   config.dataWarehouse = {
     ...config.dataWarehouse,
     enabled: true,
-    cron: config.dataWarehouse?.cron ?? '0 * * * *',
+    cron: '* * * * *', // every minute for testing
+    sink: 'local',
+    localBasePath: '/tmp/medplum-dw-test',
   };
   validateDataWarehouseConfig(config);
   return config;

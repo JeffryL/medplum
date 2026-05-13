@@ -314,6 +314,8 @@ export interface MedplumWorkersConfig {
   bullmq?: Partial<Record<WorkerName, Partial<MedplumBullmqConfig>>>;
 }
 
+export type MedplumDataWarehouseSinkType = 's3tables' | 'local';
+
 export interface MedplumDataWarehouseConfig {
   /**
    * Enables/disables the scheduled sync worker. Defaults to false.
@@ -329,10 +331,12 @@ export interface MedplumDataWarehouseConfig {
    */
   databaseStatementTimeout?: string;
   /** Warehouse destination sink type. */
-  sink?: 's3tables' | 'local';
+  sink?: MedplumDataWarehouseSinkType;
+  /** Required when sink is `s3tables`. */
   awsS3TableArn?: string;
   /** Required when sink is `local`. */
   localBasePath?: string;
+  /** Optional Iceberg namespace used by sync. */
   namespace?: string;
 }
 

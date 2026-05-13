@@ -70,7 +70,7 @@ describe('validateDataWarehouseConfig', () => {
           dataWarehouse: { enabled: true, cron: '0 * * * *' },
         })
       )
-    ).toThrow('dataWarehouse.awsS3TableArn is required when dataWarehouse.sink is "s3tables"');
+    ).toThrow('dataWarehouse.sink must be "s3tables" or "local"');
   });
 
   it('throws when sink is s3tables and awsS3TableArn is whitespace only', () => {
