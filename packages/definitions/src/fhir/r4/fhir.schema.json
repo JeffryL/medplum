@@ -61406,6 +61406,7 @@
           "items": {
             "enum": [
               "ai",
+              "ai-realtime",
               "aws-comprehend",
               "aws-textract",
               "bots",
@@ -61413,9 +61414,11 @@
               "email",
               "google-auth-required",
               "graphql-introspection",
+              "scheduling",
               "websocket-subscriptions",
               "transaction-bundles",
-              "validate-terminology"
+              "validate-terminology",
+              "range-search"
             ]
           },
           "type": "array"
