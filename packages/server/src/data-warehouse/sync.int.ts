@@ -20,10 +20,10 @@ function assertParquetMagic(bytes: Buffer): void {
 
 /**
  * Integration: Postgres (Testcontainers) → syncData (sink: local) → Parquet on disk.
- * 
+ *
  * This test exercises the local Parquet sink by writing a single row to a Postgres history table,
  * then syncing it to a local Parquet file.
- * 
+ *
  */
 describe('syncData local sink (integration)', () => {
   let container: { stop(): Promise<unknown> } | undefined;
