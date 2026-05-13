@@ -20,8 +20,8 @@ import { deployFissionBot } from '../../cloud/fission/deploy';
 import { getAuthenticatedContext } from '../../context';
 import { getBinaryStorage } from '../../storage/loader';
 import { readStreamToString } from '../../util/streams';
-import type { Repository } from '../repo';
 import { findProjectMembership } from '../../workers/utils';
+import type { Repository } from '../repo';
 
 export async function deployHandler(req: FhirRequest): Promise<FhirResponse> {
   const ctx = getAuthenticatedContext();
