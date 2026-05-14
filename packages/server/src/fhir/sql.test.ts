@@ -310,11 +310,10 @@ describe('SqlBuilder', () => {
 
     test('Insert into select with target columns', () => {
       const sql = new SqlBuilder();
-      new InsertQuery(
-        'MyTable',
-        new SelectQuery('MyOtherTable').column('sourceId').column('sourceName'),
-        ['id', 'name']
-      ).buildSql(sql);
+      new InsertQuery('MyTable', new SelectQuery('MyOtherTable').column('sourceId').column('sourceName'), [
+        'id',
+        'name',
+      ]).buildSql(sql);
       expect(sql.toString()).toBe(
         'INSERT INTO "MyTable" ("id", "name") SELECT "MyOtherTable"."sourceId", "MyOtherTable"."sourceName" FROM "MyOtherTable"'
       );
@@ -324,13 +323,10 @@ describe('SqlBuilder', () => {
       const db = {
         query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ id: 'x' }] }),
       } as unknown as PoolClient;
-      await expect(new InsertQuery('MyTable', new SelectQuery('MyOtherTable').column('id')).execute(db)).resolves.toStrictEqual(
-        [{ id: 'x' }]
-      );
-      expect(db.query).toHaveBeenCalledWith(
-        'INSERT INTO "MyTable" SELECT "MyOtherTable"."id" FROM "MyOtherTable"',
-        []
-      );
+      await expect(
+        new InsertQuery('MyTable', new SelectQuery('MyOtherTable').column('id')).execute(db)
+      ).resolves.toStrictEqual([{ id: 'x' }]);
+      expect(db.query).toHaveBeenCalledWith('INSERT INTO "MyTable" SELECT "MyOtherTable"."id" FROM "MyOtherTable"', []);
     });
 
     test('Insert query columns throw for values insert', () => {

@@ -7,13 +7,13 @@ import { DataWarehouseAwsClient } from './aws';
 import type { WarehouseSourceTable } from './config';
 import {
   buildCopySelectToParquetQuery,
+  buildDuckdbPostgresAttachQuery,
   buildInsertIntoSelectQuery,
-  buildMaxLastUpdatedWatermarkPredicate,
   buildManagedIcebergQualifiedTable,
   buildManagedIcebergSetupQueries,
-  buildProjectedSelectFromHistoryTableQuery,
+  buildMaxLastUpdatedWatermarkPredicate,
   buildProjectedSelectFromHistoryTable,
-  buildDuckdbPostgresAttachQuery,
+  buildProjectedSelectFromHistoryTableQuery,
 } from './warehouse-sql';
 
 export type DataWarehouseSinkType = 's3tables' | 'local';

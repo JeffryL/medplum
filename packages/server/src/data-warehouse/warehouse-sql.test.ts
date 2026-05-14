@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { SelectQuery, SqlBuilder } from '../fhir/sql';
 import {
   buildCountFromHistoryTableQuery,
   buildCreateTableIfNotExistsAsQuery,
@@ -9,7 +10,6 @@ import {
   buildProjectedSelectFromHistoryTable,
   buildProjectedSelectFromHistoryTableQuery,
 } from './warehouse-sql';
-import { SelectQuery, SqlBuilder } from '../fhir/sql';
 
 describe('warehouse SQL query builders', () => {
   test('buildProjectedSelectFromHistoryTableQuery uses SelectQuery to build projected history SQL', () => {
@@ -24,9 +24,7 @@ describe('warehouse SQL query builders', () => {
   });
 
   test('buildProjectedSelectFromHistoryTable accepts source table strings directly', () => {
-    expect(buildProjectedSelectFromHistoryTable('Patient-history', 'TRUE')).toContain(
-      'FROM "pg_db"."Patient-history"'
-    );
+    expect(buildProjectedSelectFromHistoryTable('Patient-history', 'TRUE')).toContain('FROM "pg_db"."Patient-history"');
   });
 
   test('buildCountFromHistoryTableQuery builds count query with guarded content filter', () => {

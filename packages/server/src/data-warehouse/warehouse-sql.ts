@@ -13,7 +13,6 @@ export const S3_TABLES_CATALOG = 's3_tables_db';
 /** DuckDB catalog alias for attached Postgres source tables. */
 export const POSTGRES_CATALOG = 'pg_db';
 
-
 const PROJECT_ID_JSON_PATH = '$.meta.project';
 
 /** Iceberg / Parquet column names written for each resource history row (order matters for INSERT). */
@@ -132,7 +131,9 @@ export function buildProjectedSelectFromHistoryTableQuery(
 }
 
 export function buildProjectedSelectFromHistoryTable(sourceHistoryTable: string, whereClause: string): string {
-  return buildSql((sql) => sql.appendExpression(buildProjectedSelectFromHistoryTableQuery(sourceHistoryTable, whereClause)));
+  return buildSql((sql) =>
+    sql.appendExpression(buildProjectedSelectFromHistoryTableQuery(sourceHistoryTable, whereClause))
+  );
 }
 
 export function buildCountFromHistoryTableQuery(sourceHistoryTable: string, whereClause: string): string {
