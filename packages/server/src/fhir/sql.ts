@@ -212,6 +212,10 @@ export function escapeLikeString(str: string): string {
   return str.replaceAll(/[\\_%]/g, (c) => '\\' + c);
 }
 
+function isExpression(value: any): value is Expression {
+  return typeof value?.buildSql === 'function';
+}
+
 function formatTsquery(filter: string | undefined): string | undefined {
   if (!filter) {
     return undefined;
@@ -522,6 +526,11 @@ export class SqlBuilder {
     return this;
   }
 
+  appendLiteral(str: string): this {
+    this.sql.push('\'', str, '\'');
+    return this;
+  }
+
   appendColumn(column: Column): this {
     if (column.raw) {
       this.append(column.actualColumnName);
@@ -576,11 +585,19 @@ export class SqlBuilder {
         if (i++) {
           this.append(',');
         }
-        this.param(value);
+        if (isExpression(value)) {
+          this.appendExpression(value);
+        } else {
+          this.param(value);
+        }
       }
       if (addParens) {
         this.append(')');
       }
+      return;
+    }
+    if (isExpression(parameter)) {
+      this.appendExpression(parameter);
     } else {
       this.param(parameter);
     }
@@ -1048,17 +1065,22 @@ export class UpdateQuery extends BaseQuery {
 export class InsertQuery extends BaseQuery {
   private readonly values?: Record<string, any>[];
   private readonly query?: SelectQuery;
+  private readonly queryColumns?: string[];
   private returnColumns?: string[];
   private conflictColumns?: string[];
   private conflictCondition?: Condition;
   private ignoreConflict?: boolean;
 
-  constructor(tableName: string, values: Record<string, any>[] | SelectQuery) {
+  constructor(tableName: string, values: Record<string, any>[] | SelectQuery, queryColumns?: string[]) {
     super(tableName);
     if (Array.isArray(values)) {
       this.values = values;
+      if (queryColumns?.length) {
+        throw new Error('InsertQuery queryColumns are only valid for INSERT ... SELECT');
+      }
     } else {
       this.query = values;
+      this.queryColumns = queryColumns;
     }
   }
 
@@ -1088,6 +1110,9 @@ export class InsertQuery extends BaseQuery {
       this.appendColumns(sql, columnNames);
       this.appendAllValues(sql, columnNames);
     } else {
+      if (this.queryColumns?.length) {
+        this.appendColumns(sql, this.queryColumns);
+      }
       this.appendSubquery(sql);
     }
     this.appendMerge(sql);
@@ -1179,7 +1204,7 @@ export class InsertQuery extends BaseQuery {
   }
 
   async execute(conn: Pool | PoolClient): Promise<any[]> {
-    if (!this.values?.length) {
+    if (this.values?.length === 0) {
       return [];
     }
     return super.execute(conn);

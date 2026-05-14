@@ -21,6 +21,11 @@ function assertParquetMagic(bytes: Buffer): void {
   expect(bytes.subarray(bytes.length - 4).toString('ascii')).toBe('PAR1');
 }
 
+function buildReadParquetFirstRowProjectionQuery(parquetPath: string): string {
+  const escapedPath = parquetPath.replaceAll("'", "''");
+  return `SELECT id::VARCHAR AS id, project_id::VARCHAR AS project_id FROM read_parquet('${escapedPath}') LIMIT 1`;
+}
+
 /**
  * Exercises the local Parquet sink by writing a single row to a dedicated Postgres history table,
  * then syncing it to a local Parquet file.
@@ -33,6 +38,9 @@ describe('syncData local sink (integration)', () => {
   let password: string;
   let outDir: string | undefined;
 
+  /**
+   * Generates some fake test data
+   */
   beforeAll(async () => {
     const config = await loadTestConfig();
     const db = config.database;
@@ -76,7 +84,7 @@ describe('syncData local sink (integration)', () => {
     } finally {
       await client.end();
     }
-  }, 120_000);
+  }, 10_000);
 
   afterAll(async () => {
     const client = new pg.Client({
@@ -95,7 +103,7 @@ describe('syncData local sink (integration)', () => {
     if (outDir) {
       rmSync(outDir, { recursive: true, force: true });
     }
-  }, 30_000);
+  }, 10_00);
 
   beforeEach(() => {
     outDir = mkdtempSync(join(tmpdir(), 'medplum-dw-parquet-'));
@@ -108,33 +116,37 @@ describe('syncData local sink (integration)', () => {
   });
 
   it('exports projected history rows to a Parquet file via local sink', async () => {
+    // Given: an isolated warehouse source and local parquet sink
     const sources = resolveWarehouseSourcesFromPostgresTableNames([HISTORY_TABLE]);
     const sink = new LocalParquetWarehouseSink(outDir as string);
+
+    // When: we run data warehouse sync against the seeded history table
     const result = await syncData({
       database: { host, port, dbname: database, username, password },
       databaseStatementTimeout: DEFAULT_DATABASE_STATEMENT_TIMEOUT,
       warehouseSources: sources,
       sink,
     });
+
+    // Then: sync reports an inserted parquet artifact for the expected table
     expect(result.resources).toHaveLength(1);
     expect(result.resources[0]?.action).toBe('insert');
     expect(result.resources[0]?.table).toContain(`${sources[0]?.icebergTable}.parquet`);
 
+    // Then: the written file is a valid parquet payload
     const parquetPath = result.resources[0]?.table;
     assertParquetMagic(readFileSync(parquetPath));
 
+    // Then: projected row values are readable and match source content
     const instance = await DuckDBInstance.create(':memory:');
     const c = await instance.connect();
     try {
-      const pqEsc = parquetPath.replace(/\\/g, '/').replaceAll("'", "''");
-      const res = await c.runAndReadAll(
-        `SELECT id::VARCHAR AS id, project_id::VARCHAR AS project_id FROM read_parquet('${pqEsc}') LIMIT 1`
-      );
+      const res = await c.runAndReadAll(buildReadParquetFirstRowProjectionQuery(parquetPath));
       const row = res.getRowObjectsJson()[0] as { id: string; project_id: string | null };
       expect(row.id).toBe('patient-int-1');
       expect(row.project_id).toBe('project-from-json');
     } finally {
       c.closeSync();
     }
-  }, 120_000);
+  }, 1_000);
 });

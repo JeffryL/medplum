@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CreateNamespaceCommand, GetTableCommand, S3TablesClient } from '@aws-sdk/client-s3tables';
-import { asSqlIdentifier } from './warehouse-sql';
 
 export interface DataWarehouseAwsClientOptions {
   region: string;
@@ -16,14 +15,12 @@ export class DataWarehouseAwsClient {
   }
 
   async tableExists(tableBucketArn: string, namespace: string, tableName: string): Promise<boolean> {
-    const safeNamespace = asSqlIdentifier(namespace);
-    const safeTable = asSqlIdentifier(tableName);
     try {
       await this.s3TablesClient.send(
         new GetTableCommand({
           tableBucketARN: tableBucketArn,
-          namespace: safeNamespace,
-          name: safeTable,
+          namespace,
+          name: tableName,
         })
       );
       return true;
@@ -37,12 +34,11 @@ export class DataWarehouseAwsClient {
   }
 
   async ensureNamespaceExists(tableBucketArn: string, namespace: string): Promise<void> {
-    const safeNamespace = asSqlIdentifier(namespace);
     try {
       await this.s3TablesClient.send(
         new CreateNamespaceCommand({
           tableBucketARN: tableBucketArn,
-          namespace: [safeNamespace],
+          namespace: [namespace],
         })
       );
     } catch (error: any) {

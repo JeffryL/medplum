@@ -32,11 +32,11 @@ describe('config (integration)', () => {
   beforeAll(async () => {
     const config = await loadTestConfig();
     const db = config.database;
-    host = db.host;
-    port = db.port;
-    database = db.dbname;
-    username = db.username;
-    password = db.password;
+    host = db.host ?? '';
+    port = db.port ?? 5432;
+    database = db.dbname ?? '';
+    username = db.username ?? '';
+    password = db.password ?? '';
     connectionUri = buildPostgresUrlFromMedplumDatabaseConfig(db, '');
   }, 60_000);
 

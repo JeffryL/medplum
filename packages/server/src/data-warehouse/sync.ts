@@ -9,7 +9,7 @@ import type { MedplumDatabaseConfig } from '../config/types';
 import type { WarehouseSourceTable } from './config';
 import { buildPostgresUrlFromMedplumDatabaseConfig } from './config';
 import type { DataWarehouseSink, DuckdbConnectionForSink } from './sink';
-import { asSqlIdentifier, DEFAULT_NAMESPACE } from './warehouse-sql';
+import { buildCountFromHistoryTableQuery, DEFAULT_NAMESPACE } from './warehouse-sql';
 
 export interface SyncOptions {
   /** Same shape as server `database` / `readonlyDatabase` in `MedplumServerConfig`; host, dbname, username, and password are required when running sync. */
@@ -81,9 +81,7 @@ async function runWarehouseTableSync(
     const resultTableName = options.sink.getResultTableName(spec);
     await options.sink.ensureTargetExists(spec, namespace);
 
-    const countReader = await connection.runAndReadAll(
-      `SELECT COUNT(*) AS count FROM pg_db."${postgresTable}" WHERE content IS NOT NULL AND content != '' AND (${sourcePredicate});`
-    );
+    const countReader = await connection.runAndReadAll(buildCountFromHistoryTableQuery(postgresTable, sourcePredicate));
     const count = Number((countReader.getRowObjectsJson() as { count: number }[])[0]?.count ?? 0);
     const action = getSyncAction(count);
 
@@ -117,7 +115,7 @@ async function runWarehouseTableSync(
 
 export async function syncData(options: SyncOptions): Promise<SyncResult> {
   const sourceConnectionUrl = getSyncSourceConnectionUrl(options);
-  const namespace = asSqlIdentifier(options.namespace ?? DEFAULT_NAMESPACE);
+  const namespace = options.namespace ?? DEFAULT_NAMESPACE;
 
   let connection: WarehouseSyncDuckdbConnection | undefined;
   let duckdbTempDir: string | undefined;

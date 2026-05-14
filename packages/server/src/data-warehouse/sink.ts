@@ -6,12 +6,14 @@ import { join } from 'node:path';
 import { DataWarehouseAwsClient } from './aws';
 import type { WarehouseSourceTable } from './config';
 import {
+  buildCopySelectToParquetQuery,
   buildInsertIntoSelectQuery,
+  buildMaxLastUpdatedWatermarkPredicate,
   buildManagedIcebergQualifiedTable,
   buildManagedIcebergSetupQueries,
+  buildProjectedSelectFromHistoryTableQuery,
   buildProjectedSelectFromHistoryTable,
-  escapeSqlLiteral,
-  WAREHOUSE_HISTORY_COLUMN_NAMES,
+  buildDuckdbPostgresAttachQuery,
 } from './warehouse-sql';
 
 export type DataWarehouseSinkType = 's3tables' | 'local';
@@ -67,21 +69,19 @@ export class S3TablesWarehouseSink implements DataWarehouseSink {
 
   buildSourcePredicate(tableSpec: WarehouseSourceTable, namespace: string): string {
     const qualifiedIceberg = buildManagedIcebergQualifiedTable(namespace, tableSpec.icebergTable);
-    const watermarkSubquery = `(SELECT MAX(last_updated) FROM ${qualifiedIceberg})`;
     // Incremental sync: only Postgres rows newer than the latest row already in Iceberg.
     // When the Iceberg table is empty (or MAX is NULL), `lastUpdated > NULL` would be unknown for every row,
     // so we treat a NULL watermark as "no high-water mark" and include all source rows instead of a sentinel timestamp.
-    return `(${watermarkSubquery} IS NULL OR "lastUpdated" > ${watermarkSubquery})`;
+    return buildMaxLastUpdatedWatermarkPredicate(qualifiedIceberg);
   }
 
   async writeRows(connection: DuckdbConnectionForSink, context: SinkQueryContext): Promise<void> {
     const qualifiedIceberg = buildManagedIcebergQualifiedTable(context.namespace, context.tableSpec.icebergTable);
-    const insertColumns = WAREHOUSE_HISTORY_COLUMN_NAMES.join(', ');
-    const insertQuery = buildInsertIntoSelectQuery(
-      qualifiedIceberg,
-      insertColumns,
-      buildProjectedSelectFromHistoryTable(context.tableSpec.postgresTable, context.sourcePredicate)
+    const projectedSelectQuery = buildProjectedSelectFromHistoryTableQuery(
+      context.tableSpec.postgresTable,
+      context.sourcePredicate
     );
+    const insertQuery = buildInsertIntoSelectQuery(qualifiedIceberg, projectedSelectQuery);
     await connection.run(insertQuery);
   }
 
@@ -99,11 +99,7 @@ export class LocalParquetWarehouseSink implements DataWarehouseSink {
   }
 
   getSetupQueries(databaseUrl: string): string[] {
-    return [
-      'INSTALL postgres;',
-      'LOAD postgres;',
-      `ATTACH '${escapeSqlLiteral(databaseUrl)}' AS pg_db (TYPE postgres);`,
-    ];
+    return ['INSTALL postgres;', 'LOAD postgres;', buildDuckdbPostgresAttachQuery(databaseUrl)];
   }
 
   async ensureTargetExists(_tableSpec: WarehouseSourceTable, _namespace: string): Promise<void> {
@@ -116,12 +112,11 @@ export class LocalParquetWarehouseSink implements DataWarehouseSink {
 
   async writeRows(connection: DuckdbConnectionForSink, context: SinkQueryContext): Promise<void> {
     const parquetPath = this.getParquetPathForTable(context.tableSpec);
-    const escapedPath = escapeSqlLiteral(parquetPath);
     const projectedSelect = buildProjectedSelectFromHistoryTable(
       context.tableSpec.postgresTable,
       context.sourcePredicate
     );
-    await connection.run(`COPY (${projectedSelect}) TO '${escapedPath}' (FORMAT PARQUET, COMPRESSION zstd);`);
+    await connection.run(buildCopySelectToParquetQuery(projectedSelect, parquetPath));
   }
 
   getResultTableName(tableSpec: WarehouseSourceTable): string {
