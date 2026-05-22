@@ -82,6 +82,9 @@ services:
       MEDPLUM_INTROSPECTION_ENABLED: 'true'
       MEDPLUM_SHUTDOWN_TIMEOUT_MILLISECONDS: 30000
 
+    volumes:
+      - medplum-binary-data:/usr/src/medplum/binary
+
     healthcheck:
       test:
         # We use Node's fetch for healthcheck because this image doesn't have a curl or wget installed
@@ -112,3 +115,4 @@ services:
 
 volumes:
   medplum-postgres-data:
+  medplum-binary-data:
